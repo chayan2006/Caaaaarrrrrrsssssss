@@ -1,0 +1,610 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legislative Sentiment Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+        }
+        .sidebar-icon { width: 24px; height: 24px; stroke-width: 2; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .report-chart-container { position: relative; height: 450px; width: 100%; }
+        .page-content { display: none; }
+        .page-content.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        .hidden { display: none; }
+        .toggle-checkbox:checked { right: 0; border-color: #4338ca; /* indigo-700 */ }
+        .toggle-checkbox:checked + .toggle-label { background-color: #4338ca; /* indigo-700 */ }
+        #toast-notification {
+            transition: transform 0.3s ease-in-out, background-color 0.3s;
+            transform: translateX(120%);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+    <!-- =========== CONTAINER 1: PROFESSIONAL LOGIN PAGE =========== -->
+    <div id="login-container" class="min-h-screen flex items-center justify-center p-4 bg-cover bg-center" 
+         style="background-image: url('https://images.unsplash.com/photo-1554435493-93422e82201c?q=80&w=2070&auto=format&fit=crop');">
+        
+        <div class="w-full max-w-md bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-slate-200">
+            <div class="flex justify-center mb-4">
+                 <svg class="h-12 w-12 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M12 20h4"/><path d="M12 4H8"/><path d="M20 12h-4"/><path d="M4 12h4"/></svg>
+            </div>
+            <h1 class="text-3xl font-bold text-center text-slate-800 mb-2">GovSentiment Portal</h1>
+            <p class="text-slate-500 text-center mb-8">Please sign in to continue.</p>
+            
+            <form id="login-form">
+                <div class="mb-5">
+                    <label for="username-input" class="block text-sm font-medium text-slate-700 mb-2">Username</label>
+                    <input type="text" id="username-input" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" value="admin" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password-input" class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                    <input type="password" id="password-input" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" value="12345" required>
+                </div>
+                
+                <p id="login-error" class="text-sm text-red-600 mb-4 text-center hidden"></p>
+                
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold text-lg">Sign In</button>
+            </form>
+            <p class="text-center text-xs text-slate-400 mt-10">&copy; 2025 Ministry of Legislative Affairs.</p>
+        </div>
+    </div>
+
+    <!-- =========== CONTAINER 2: MAIN DASHBOARD APP (Hidden by default) =========== -->
+    <div id="app-container" class="flex min-h-screen hidden">
+        <aside class="w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col items-center lg:items-start p-4 transition-all duration-300">
+            <div class="flex items-center justify-center lg:justify-start w-full mb-10">
+                <svg class="h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M12 20h4"/><path d="M12 4H8"/><path d="M20 12h-4"/><path d="M4 12h4"/></svg>
+                <h1 class="text-xl font-bold text-slate-800 ml-3 hidden lg:block">GovSentiment</h1>
+            </div>
+            <nav id="sidebar-nav" class="flex flex-col space-y-4 w-full">
+                <a href="#" class="nav-link flex items-center p-3 bg-indigo-100 text-indigo-600 rounded-lg" aria-current="page" data-target="page-dashboard"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 20V10a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v10"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/></svg><span class="ml-4 font-semibold hidden lg:block">Dashboard</span></a>
+                <a href="#" class="nav-link flex items-center p-3 text-slate-600 hover:bg-slate-100 rounded-lg" data-target="page-reports"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg><span class="ml-4 font-semibold hidden lg:block">Reports</span></a>
+                <a href="#" class="nav-link flex items-center p-3 text-slate-600 hover:bg-slate-100 rounded-lg" data-target="page-users"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="ml-4 font-semibold hidden lg:block">Users</span></a>
+                <a href="#" class="nav-link flex items-center p-3 text-slate-600 hover:bg-slate-100 rounded-lg" data-target="page-settings"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1 0 2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span class="ml-4 font-semibold hidden lg:block">Settings</span></a>
+            </nav>
+            <div class="mt-auto flex flex-col w-full items-center lg:items-start">
+                <div class="flex items-center p-3 text-slate-600 cursor-pointer">
+                    <img id="sidebar-avatar-img" src="https://placehold.co/40x40/E2E8F0/475569?text=A" alt="User Avatar" class="rounded-full">
+                    <div class="ml-3 hidden lg:block">
+                        <p id="sidebar-username" class="font-semibold text-sm">Admin</p>
+                        <p class="text-xs text-slate-500">System Administrator</p>
+                    </div>
+                </div>
+                <button id="logout-button" class="w-full flex items-center p-3 text-red-500 hover:bg-red-50 rounded-lg mt-2">
+                    <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span class="ml-4 font-semibold hidden lg:block">Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-6 lg:p-10">
+            <!-- PAGE: Dashboard -->
+            <div id="page-dashboard" class="page-content active">
+                <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-slate-800">Draft Legislation Feedback</h1>
+                        <p class="text-slate-500 mt-1">Review and analyze stakeholder comments.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 mt-4 md:mt-0">
+                        <button id="export-button" class="flex items-center bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition">
+                            <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Export Analysis
+                        </button>
+                        <button id="upload-button" class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">
+                            <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                            Upload Your Comment
+                        </button>
+                        <input type="file" id="file-upload-input" class="hidden" accept=".csv, .txt, .doc, .docx, .xls, .xlsx">
+                    </div>
+                </header>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Total Comments</h3><div class="p-2 bg-indigo-100 rounded-lg"><svg class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div></div><p id="stat-total" class="text-4xl font-bold text-slate-800 mt-2">0</p><p class="text-sm text-slate-500 flex items-center mt-1">Total results</p></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Positive</h3><div class="p-2 bg-green-100 rounded-lg"><svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a2 2 0 0 1 1.79 1.11L15 5.88z"/></svg></div></div><p id="stat-positive" class="text-4xl font-bold text-slate-800 mt-2">0</p><p id="stat-positive-sub" class="text-sm text-slate-500 mt-1">0% of total</p></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Negative</h3><div class="p-2 bg-red-100 rounded-lg"><svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a2 2 0 0 1-1.79-1.11L9 18.12z"/></svg></div></div><p id="stat-negative" class="text-4xl font-bold text-slate-800 mt-2">0</p><p id="stat-negative-sub" class="text-sm text-slate-500 mt-1">0% of total</p></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Neutral</h3><div class="p-2 bg-yellow-100 rounded-lg"><svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="8" x2="16" y1="12" y2="12"/></svg></div></div><p id="stat-neutral" class="text-4xl font-bold text-slate-800 mt-2">0</p><p id="stat-neutral-sub" class="text-sm text-slate-500 mt-1">0% of total</p></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><h3 class="text-lg font-semibold text-slate-800 mb-4">Sentiment Distribution</h3><div class="chart-container"><canvas id="sentimentChart"></canvas></div></div>
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><h3 class="text-lg font-semibold text-slate-800 mb-4">Top Keywords</h3><div id="keyword-list" class="space-y-3 overflow-y-auto" style="height: 300px;"></div></div>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4"><h3 class="text-lg font-semibold text-slate-800">Individual Comments</h3><div class="flex items-center space-x-2 mt-4 md:mt-0 w-full md:w-auto"><div class="relative w-full md:w-64"><input type="text" id="searchInput" placeholder="Search comments..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"><svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div><select id="sentimentFilter" class="border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"><option value="all">All Sentiments</option><option value="positive">Positive</option><option value="negative">Negative</option><option value="neutral">Neutral</option></select></div></div>
+                    <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th scope="col" class="px-6 py-4 font-semibold">Comment Summary</th><th scope="col" class="px-6 py-4 font-semibold">Sentiment</th><th scope="col" class="px-6 py-4 font-semibold">Keywords</th><th scope="col" class="px-6 py-4 font-semibold">Provision</th><th scope="col" class="px-6 py-4 font-semibold text-center">Actions</th></tr></thead><tbody id="commentsTableBody"></tbody></table></div>
+                    <div class="flex justify-between items-center mt-4"><span class="text-sm text-slate-500" id="paginationInfo"></span><div class="flex items-center space-x-1" id="paginationControls"></div></div>
+                </div>
+            </div>
+            <!-- PAGE: Reports -->
+            <div id="page-reports" class="page-content">
+                 <h1 class="text-3xl font-bold text-slate-800 mb-4">Sentiment by Provision Report</h1>
+                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-slate-600 mb-4">This report aggregates comments by legislative provision, showing the sentiment split for each section.</p><div class="report-chart-container"><canvas id="provisionChart"></canvas></div></div>
+            </div>
+            <!-- PAGE: Users -->
+            <div id="page-users" class="page-content">
+                 <h1 class="text-3xl font-bold text-slate-800 mb-4">User Management</h1>
+                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm"><div class="flex justify-between items-center p-4 border-b"><h3 class="text-lg font-semibold text-slate-800">All Users</h3><button class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-medium"><svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add User</button></div><div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th scope="col" class="px-6 py-3">Name</th><th scope="col" class="px-6 py-3">Email</th><th scope="col" class="px-6 py-3">Role</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3 text-center">Actions</th></tr></thead><tbody><tr class="bg-white border-b hover:bg-slate-50"><td class="px-6 py-4 font-medium text-slate-900">Admin</td><td class="px-6 py-4">admin@gov.mail</td><td class="px-6 py-4">Admin</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span></td><td class="px-6 py-4 text-center font-medium"><a href="#" class="text-indigo-600 hover:underline">Edit</a></td></tr><tr class="bg-white border-b hover:bg-slate-50"><td class="px-6 py-4 font-medium text-slate-900">Jane Smith</td><td class="px-6 py-4">jane.smith@gov.mail</td><td class="px-6 py-4">Analyst</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span></td><td class="px-6 py-4 text-center font-medium"><a href="#" class="text-indigo-600 hover:underline">Edit</a></td></tr><tr class="bg-white border-b hover:bg-slate-50"><td class="px-6 py-4 font-medium text-slate-900">Robert Brown</td><td class="px-6 py-4">robert.brown@gov.mail</td><td class="px-6 py-4">Viewer</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">Inactive</span></td><td class="px-6 py-4 text-center font-medium"><a href="#" class="text-indigo-600 hover:underline">Edit</a></td></tr></tbody></table></div></div>
+            </div>
+            <!-- PAGE: Settings -->
+            <div id="page-settings" class="page-content">
+                 <h1 class="text-3xl font-bold text-slate-800 mb-4">Settings</h1>
+                 <div class="bg-white rounded-xl border border-slate-200 max-w-2xl shadow-sm"><div class="p-6 border-b"><h3 class="text-lg font-semibold text-slate-800">Profile</h3><p class="text-sm text-slate-500">This information is associated with your account.</p></div><div class="p-6 space-y-4"><div><label for="name" class="block text-sm font-medium text-slate-700">Name</label><input type="text" id="name" value="Admin" disabled class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-slate-100 text-slate-500 cursor-not-allowed sm:text-sm"></div><div><label for="email" class="block text-sm font-medium text-slate-700">Email</label><input type="email" id="email" value="admin@gov.mail" disabled class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-slate-100 text-slate-500 cursor-not-allowed sm:text-sm"></div></div><div class="p-6 border-t"><h3 class="text-lg font-semibold text-slate-800">Notifications</h3><p class="text-sm text-slate-500">Manage how you receive alerts.</p></div><div class="p-6 space-y-4"><div class="relative flex items-center justify-between"><div><span class="font-medium text-slate-800">Daily Digest Email</span><p class="text-sm text-slate-500">Receive a summary of all comments each morning.</p></div><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle-1" id="toggle-1" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" checked/><label for="toggle-1" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label></div></div><div class="relative flex items-center justify-between"><div><span class="font-medium text-slate-800">New Comment Alerts</span><p class="text-sm text-slate-500">Receive an email whenever a new comment is imported.</p></div><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle-2" id="toggle-2" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/><label for="toggle-2" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label></div></div></div><div class="px-6 py-4 bg-slate-50 border-t text-right rounded-b-xl"><button class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-medium ml-auto">Save Changes</button></div></div>
+            </div>
+            <footer class="text-center mt-10 text-sm text-slate-500"><p>Ministry of Legislative Affairs | GovSentiment Analysis Portal</p></footer>
+        </main>
+    </div>
+
+    <!-- MODAL for viewing comment details -->
+    <div id="view-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border p-6 relative">
+            <button id="close-modal-btn" class="absolute top-4 right-4 text-slate-500 hover:text-slate-800"><svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            <h2 id="modal-title" class="text-xl font-bold text-slate-800 mb-2">Comment Details</h2>
+            <p id="modal-provision" class="text-sm text-slate-500 mb-4">Provision</p>
+            <div id="modal-sentiment" class="mb-4"></div>
+            <div class="bg-slate-50 p-4 rounded-lg border max-h-80 overflow-y-auto">
+                <h4 class="font-semibold text-slate-700 mb-1">Full Comment Text:</h4>
+                <p id="modal-full-text" class="text-slate-600 whitespace-pre-wrap"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-notification" class="fixed top-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg">
+        <p id="toast-message">File uploaded successfully!</p>
+    </div>
+
+    <!-- TEMPLATE for a single comment row in the table -->
+    <template id="comment-row-template">
+        <tr class="bg-white border-b hover:bg-slate-50">
+            <td class="px-6 py-4 font-medium text-slate-900 data-summary">Summary placeholder<p class="font-normal text-slate-500 mt-1 italic line-clamp-1 data-text">"Full text placeholder"</p></td>
+            <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full data-sentiment">Sentiment</span></td>
+            <td class="px-6 py-4"><div class="flex flex-wrap gap-1 data-keywords"></div></td>
+            <td class="px-6 py-4 data-provision">Provision placeholder</td>
+            <td class="px-6 py-4 text-center"><div class="flex justify-center items-center space-x-1"><button class="p-1.5 text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-colors action-flag" title="Flag Comment"><svg class="h-5 w-5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg></button><button class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors action-view" title="View Details"><svg class="h-5 w-5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></td>
+        </tr>
+    </template>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            // --- LOGIN LOGIC ---
+            const loginContainer = document.getElementById('login-container');
+            const appContainer = document.getElementById('app-container');
+            const loginForm = document.getElementById('login-form');
+            const usernameInput = document.getElementById('username-input');
+            const passwordInput = document.getElementById('password-input');
+            const loginError = document.getElementById('login-error');
+
+            loginForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const username = usernameInput.value.trim().toLowerCase();
+                const password = passwordInput.value.trim();
+
+                // Simple hardcoded validation
+                if (username === 'admin' && password === '12345') {
+                    loginContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+                    runDashboardApp(); // Initialize the main application
+                } else {
+                    loginError.textContent = 'Invalid username or password. Please try again.';
+                    loginError.classList.remove('hidden');
+                }
+            });
+            
+            // --- MAIN APPLICATION LOGIC ---
+            function runDashboardApp() {
+                // --- STATE MANAGEMENT ---
+                let allComments = [];
+                let filteredComments = [];
+                let currentPage = 1;
+                const itemsPerPage = 5;
+                let sentimentChart = null;
+                let provisionChartInstance = null;
+                const sentimentColors = {
+                    positive: '#22c55e', // green-500
+                    negative: '#ef4444', // red-500
+                    neutral: '#f59e0b',  // amber-500
+                };
+                const sentimentBGClasses = {
+                    positive: 'bg-green-100 text-green-800',
+                    negative: 'bg-red-100 text-red-800',
+                    neutral: 'bg-yellow-100 text-yellow-800',
+                };
+                
+                // --- DOM ELEMENT SELECTORS ---
+                const tableBody = document.getElementById('commentsTableBody');
+                const searchInput = document.getElementById('searchInput');
+                const sentimentFilter = document.getElementById('sentimentFilter');
+                const paginationInfo = document.getElementById('paginationInfo');
+                const paginationControls = document.getElementById('paginationControls');
+                const commentTemplate = document.getElementById('comment-row-template');
+                const keywordListContainer = document.getElementById('keyword-list');
+                const sidebarNav = document.getElementById('sidebar-nav');
+                const navLinks = sidebarNav.querySelectorAll('.nav-link');
+                const pageContents = document.querySelectorAll('#app-container .page-content');
+                const logoutButton = document.getElementById('logout-button');
+                const uploadButton = document.getElementById('upload-button');
+                const fileUploadInput = document.getElementById('file-upload-input');
+                const exportButton = document.getElementById('export-button');
+                const viewModal = document.getElementById('view-modal');
+                const closeModalBtn = document.getElementById('close-modal-btn');
+                const modalTitle = document.getElementById('modal-title');
+                const modalProvision = document.getElementById('modal-provision');
+                const modalSentiment = document.getElementById('modal-sentiment');
+                const modalFullText = document.getElementById('modal-full-text');
+                const toast = document.getElementById('toast-notification');
+                const toastMessage = document.getElementById('toast-message');
+                
+                // --- DATA ---
+                // Start with an empty array. Data will be populated on upload.
+                const initialMockComments = [];
+                
+                // --- UI & DATA UPDATE FUNCTIONS ---
+
+                /** Recalculates all dashboard stats and updates the UI */
+                function updateAllVisuals() {
+                    const sentimentCounts = filteredComments.reduce((acc, comment) => {
+                        acc[comment.sentiment] = (acc[comment.sentiment] || 0) + 1;
+                        return acc;
+                    }, { positive: 0, negative: 0, neutral: 0 });
+
+                    updateDashboardStats(sentimentCounts, filteredComments.length);
+                    updateSentimentChart(sentimentCounts);
+                    updateKeywordList(filteredComments);
+                    renderTable();
+                }
+
+                /** Updates the main statistics cards at the top of the dashboard. */
+                function updateDashboardStats(counts, total) {
+                    document.getElementById('stat-total').textContent = total;
+                    document.getElementById('stat-positive').textContent = counts.positive || 0;
+                    document.getElementById('stat-negative').textContent = counts.negative || 0;
+                    document.getElementById('stat-neutral').textContent = counts.neutral || 0;
+                    const getPercentage = (count, total) => (total === 0 ? '0.0%' : ((count / total) * 100).toFixed(1) + '%');
+                    document.getElementById('stat-positive-sub').textContent = `${getPercentage(counts.positive, total)} of total`;
+                    document.getElementById('stat-negative-sub').textContent = `${getPercentage(counts.negative, total)} of total`;
+                    document.getElementById('stat-neutral-sub').textContent = `${getPercentage(counts.neutral, total)} of total`;
+                }
+
+                /** Renders or updates the sentiment distribution doughnut chart. */
+                function updateSentimentChart(counts) {
+                    const data = [counts.positive, counts.negative, counts.neutral];
+                    if (sentimentChart) {
+                        sentimentChart.data.datasets[0].data = data;
+                        sentimentChart.update();
+                    } else {
+                        sentimentChart = new Chart(document.getElementById('sentimentChart').getContext('2d'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Positive', 'Negative', 'Neutral'],
+                                datasets: [{ data: data, backgroundColor: [sentimentColors.positive, sentimentColors.negative, sentimentColors.neutral], borderColor: '#fff', borderWidth: 4 }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20 } } } }
+                        });
+                    }
+                }
+
+                /** Renders the list of top keywords from the comments. */
+                function updateKeywordList(comments) {
+                    const frequency = comments.flatMap(c => c.keywords).reduce((acc, word) => {
+                        acc[word] = (acc[word] || 0) + 1;
+                        return acc;
+                    }, {});
+                    const sortedKeywords = Object.entries(frequency).sort((a, b) => b[1] - a[1]).slice(0, 15);
+                    keywordListContainer.innerHTML = '';
+                    if (sortedKeywords.length === 0) {
+                        keywordListContainer.innerHTML = '<p class="text-sm text-slate-500">No keywords found. Upload a file to begin.</p>';
+                        return;
+                    }
+                    sortedKeywords.forEach(([keyword, count]) => {
+                        keywordListContainer.innerHTML += `<div class="flex justify-between items-center text-sm pb-2 border-b border-slate-100"><span class="font-medium text-slate-700">${keyword}</span><span class="font-bold text-indigo-600 bg-indigo-100 px-2.5 py-0.5 rounded-full text-xs">${count}</span></div>`;
+                    });
+                }
+
+                /** Renders the main comments table with pagination. */
+                function renderTable() {
+                    tableBody.innerHTML = '';
+                    const paginatedComments = filteredComments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                    
+                    if (paginatedComments.length === 0) {
+                        tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-16"><div class="flex flex-col items-center"><svg class="h-16 w-16 text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg><h3 class="mt-2 text-lg font-semibold text-slate-800">No Comments to Display</h3><p class="mt-1 text-sm text-slate-500">Please upload a file to start the analysis.</p></div></td></tr>`;
+                    } else {
+                        paginatedComments.forEach(comment => {
+                            const clone = commentTemplate.content.cloneNode(true);
+                            const row = clone.querySelector('tr');
+                            row.dataset.commentId = comment.id;
+                            clone.querySelector('.data-summary').firstChild.textContent = comment.summary;
+                            clone.querySelector('.data-text').textContent = `"${comment.text}"`;
+                            clone.querySelector('.data-provision').textContent = comment.provision;
+                            const sentimentBadge = clone.querySelector('.data-sentiment');
+                            sentimentBadge.textContent = comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1);
+                            sentimentBadge.className += ` ${sentimentBGClasses[comment.sentiment]}`;
+                            const keywordsContainer = clone.querySelector('.data-keywords');
+                            comment.keywords.forEach(keyword => {
+                                const span = document.createElement('span');
+                                span.className = 'bg-slate-100 text-slate-700 text-xs font-medium px-2 py-0.5 rounded';
+                                span.textContent = keyword;
+                                keywordsContainer.appendChild(span);
+                            });
+                            const flagButton = clone.querySelector('.action-flag');
+                            if (comment.flagged) {
+                                flagButton.classList.add('text-red-600');
+                            }
+                            tableBody.appendChild(clone);
+                        });
+                    }
+                    renderPagination();
+                }
+
+                /** Renders the pagination controls based on the current state. */
+                function renderPagination() {
+                    const totalPages = Math.ceil(filteredComments.length / itemsPerPage);
+                    paginationControls.innerHTML = '';
+
+                    const createButton = (text, onClick, isDisabled, isCurrent) => {
+                        const button = document.createElement('button');
+                        button.innerHTML = text;
+                        if (isCurrent) {
+                            button.className = 'px-3 py-1 rounded-md text-sm bg-indigo-600 text-white';
+                        } else {
+                             button.className = `px-3 py-1 rounded-md text-sm hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed`;
+                        }
+                        button.disabled = isDisabled;
+                        button.onclick = onClick;
+                        return button;
+                    };
+
+                    paginationControls.appendChild(createButton('<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>', () => { currentPage--; renderTable(); }, currentPage === 1));
+
+                    for (let i = 1; i <= totalPages; i++) {
+                        paginationControls.appendChild(createButton(i, () => { currentPage = i; renderTable(); }, false, currentPage === i));
+                    }
+                    
+                    paginationControls.appendChild(createButton('<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>', () => { currentPage++; renderTable(); }, currentPage === totalPages || totalPages === 0));
+
+                    const startItem = filteredComments.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+                    const endItem = Math.min(currentPage * itemsPerPage, filteredComments.length);
+                    paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${filteredComments.length} results`;
+                }
+                
+                /** Renders the stacked bar chart for sentiment by provision. */
+                function renderProvisionChart() {
+                    const dataByProvision = allComments.reduce((acc, comment) => {
+                        if (!acc[comment.provision]) acc[comment.provision] = { positive: 0, negative: 0, neutral: 0 };
+                        acc[comment.provision][comment.sentiment]++;
+                        return acc;
+                    }, {});
+                    
+                    const labels = Object.keys(dataByProvision);
+                    const datasets = [
+                        { label: 'Positive', data: labels.map(p => dataByProvision[p].positive || 0), backgroundColor: sentimentColors.positive },
+                        { label: 'Negative', data: labels.map(p => dataByProvision[p].negative || 0), backgroundColor: sentimentColors.negative },
+                        { label: 'Neutral', data: labels.map(p => dataByProvision[p].neutral || 0), backgroundColor: sentimentColors.neutral }
+                    ];
+
+                    if(provisionChartInstance) provisionChartInstance.destroy();
+                    provisionChartInstance = new Chart(document.getElementById('provisionChart').getContext('2d'), {
+                        type: 'bar',
+                        data: { labels, datasets },
+                        options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+                    });
+                }
+
+                // --- EVENT HANDLERS & LOGIC ---
+
+                /** Applies search and filter criteria and re-renders the UI. */
+                function handleFilterAndSearch() {
+                    const searchText = searchInput.value.toLowerCase();
+                    const sentimentValue = sentimentFilter.value;
+                    
+                    filteredComments = allComments.filter(comment => {
+                        const matchesSearch = searchText === '' ||
+                            comment.text.toLowerCase().includes(searchText) ||
+                            comment.summary.toLowerCase().includes(searchText) ||
+                            comment.provision.toLowerCase().includes(searchText) ||
+                            comment.keywords.some(k => k.toLowerCase().includes(searchText));
+                        
+                        const matchesSentiment = sentimentValue === 'all' || comment.sentiment === sentimentValue;
+                        
+                        return matchesSearch && matchesSentiment;
+                    });
+                    
+                    currentPage = 1;
+                    updateAllVisuals();
+                }
+
+                /** Handles clicks within the main table for actions like 'view' and 'flag'. */
+                function handleTableClick(event) {
+                    const actionButton = event.target.closest('.action-view, .action-flag');
+                    if (!actionButton) return;
+                    
+                    const row = event.target.closest('tr');
+                    const commentId = parseInt(row.dataset.commentId);
+                    const comment = allComments.find(c => c.id === commentId);
+
+                    if (actionButton.classList.contains('action-view')) {
+                        showModal(comment);
+                    } else if (actionButton.classList.contains('action-flag')) {
+                        comment.flagged = !comment.flagged;
+                        actionButton.classList.toggle('text-red-600', comment.flagged);
+                    }
+                }
+                
+                /** Handles navigation between pages (Dashboard, Reports, etc.). */
+                function handleNavigation(event) {
+                    const link = event.target.closest('.nav-link');
+                    if (!link) return;
+                    event.preventDefault();
+                    
+                    const targetId = link.dataset.target;
+                    
+                    navLinks.forEach(navLink => {
+                        navLink.classList.remove('bg-indigo-100', 'text-indigo-600');
+                        navLink.classList.add('text-slate-600', 'hover:bg-slate-100');
+                        navLink.removeAttribute('aria-current');
+                    });
+                    
+                    link.classList.add('bg-indigo-100', 'text-indigo-600');
+                    link.classList.remove('text-slate-600', 'hover:bg-slate-100');
+                    link.setAttribute('aria-current', 'page');
+                    
+                    pageContents.forEach(page => {
+                        page.classList.toggle('active', page.id === targetId);
+                    });
+                    
+                    if (targetId === 'page-reports') {
+                        renderProvisionChart();
+                    }
+                }
+                
+                /** Shows the modal with details for a specific comment. */
+                function showModal(comment) {
+                    modalTitle.textContent = `Comment #${comment.id} Details`;
+                    modalProvision.textContent = `Regarding: ${comment.provision}`;
+                    modalFullText.textContent = comment.text;
+                    modalSentiment.innerHTML = `<span class="px-2 py-1 text-xs font-medium rounded-full ${sentimentBGClasses[comment.sentiment]}">${comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1)}</span>`;
+                    viewModal.classList.remove('hidden');
+                }
+
+                /** Simulates exporting data by creating a downloadable CSV file. */
+                function exportDataToCSV() {
+                    if (filteredComments.length === 0) {
+                        showToast('No data to export.', 'error');
+                        return;
+                    }
+                    let csvContent = "data:text/csv;charset=utf-t8,";
+                    csvContent += "ID,Summary,Sentiment,Provision,Keywords,Full Text\n";
+
+                    filteredComments.forEach(comment => {
+                        const row = [
+                            comment.id,
+                            `"${comment.summary.replace(/"/g, '""')}"`,
+                            comment.sentiment,
+                            comment.provision,
+                            `"${comment.keywords.join(', ')}"`,
+                            `"${comment.text.replace(/"/g, '""')}"`
+                        ].join(',');
+                        csvContent += row + "\n";
+                    });
+                    
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "sentiment_analysis_export.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+
+                /** Handles the file upload process */
+                function handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const allowedExtensions = ['csv', 'txt', 'doc', 'docx', 'xls', 'xlsx'];
+                    const extension = file.name.split('.').pop().toLowerCase();
+
+                    if (allowedExtensions.includes(extension)) {
+                        showToast(`Processing "${file.name}"...`, 'info');
+                        // Simulate processing the file after a short delay
+                        setTimeout(() => {
+                            const commentCountToSimulate = 90; 
+                            const sampleProvisions = ["Taxation", "Healthcare", "Infrastructure", "Public Safety", "Education", "Environment", "Trade Policy", "Labor Law"];
+                            const sampleSentiments = ["positive", "negative", "neutral"];
+                            const sampleSummaries = {
+                                positive: "Strongly supports the new initiative regarding",
+                                negative: "Expresses significant concerns about",
+                                neutral: "Requests further clarification on the details of"
+                            };
+                             const sampleKeywords = {
+                                positive: ["support", "growth", "benefit", "innovation"],
+                                negative: ["oppose", "concern", "risk", "burden"],
+                                neutral: ["review", "clarify", "details", "impact study"]
+                            };
+
+                            const newComments = [];
+                            for (let i = 0; i < commentCountToSimulate; i++) {
+                                const sentiment = sampleSentiments[Math.floor(Math.random() * sampleSentiments.length)];
+                                const provision = sampleProvisions[Math.floor(Math.random() * sampleProvisions.length)];
+                                const id = allComments.length + i + 1;
+                                
+                                newComments.push({
+                                    id: id,
+                                    text: `This is a generated comment text for comment #${id} regarding the new ${provision} legislation. Based on our analysis, the sentiment is ${sentiment}. More details are required to fully assess the long-term impact.`,
+                                    sentiment: sentiment,
+                                    summary: `${sampleSummaries[sentiment]} ${provision}...`,
+                                    keywords: sampleKeywords[sentiment],
+                                    provision: provision,
+                                    flagged: Math.random() < 0.05 // Flag 5% of new comments randomly
+                                });
+                            }
+
+                            allComments = [...newComments]; // Replace old comments with new ones
+                            handleFilterAndSearch();
+                            showToast(`${commentCountToSimulate} comments from "${file.name}" analyzed and imported!`, 'success');
+
+                        }, 1500);
+                    } else {
+                        showToast('Invalid file type. Please upload a valid document.', 'error');
+                    }
+                    // Reset file input to allow uploading the same file again
+                    event.target.value = '';
+                }
+
+                /** Shows a toast notification. */
+                function showToast(message, type = 'success') {
+                    toastMessage.textContent = message;
+                    toast.classList.remove('bg-green-500', 'bg-red-500', 'bg-blue-500');
+                    if (type === 'success') {
+                        toast.classList.add('bg-green-500');
+                    } else if (type === 'error') {
+                        toast.classList.add('bg-red-500');
+                    } else { // info
+                        toast.classList.add('bg-blue-500');
+                    }
+
+                    toast.style.transform = 'translateX(0)';
+                    setTimeout(() => {
+                        toast.style.transform = 'translateX(120%)';
+                    }, 3000);
+                }
+
+                // --- EVENT LISTENERS BINDING ---
+                sidebarNav.addEventListener('click', handleNavigation);
+                searchInput.addEventListener('input', handleFilterAndSearch);
+                sentimentFilter.addEventListener('change', handleFilterAndSearch);
+                tableBody.addEventListener('click', handleTableClick);
+                logoutButton.addEventListener('click', () => location.reload());
+                uploadButton.addEventListener('click', () => fileUploadInput.click());
+                fileUploadInput.addEventListener('change', handleFileUpload);
+                exportButton.addEventListener('click', exportDataToCSV);
+
+                // Modal close listeners
+                closeModalBtn.addEventListener('click', () => viewModal.classList.add('hidden'));
+                viewModal.addEventListener('click', (e) => { if (e.target === viewModal) viewModal.classList.add('hidden'); });
+
+                // --- INITIALIZATION ---
+                function initialize() {
+                    allComments = [...initialMockComments];
+                    handleFilterAndSearch();
+                }
+                
+                initialize();
+            }
+        });
+    </script>
+</body>
+</html>
