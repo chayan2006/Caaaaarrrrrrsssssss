@@ -1,862 +1,955 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Counter Hub</title>
-    
-    <!-- Tailwind CSS for styling -->
+    <title>Legislative Sentiment Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Google Fonts for better typography -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
     <style>
-        /* This is our embedded CSS section */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f8fafc; /* slate-50 from Tailwind */
+            background-color: #f8fafc; /* slate-50 */
         }
-
-        /* Page simulation using a helper class */
-        .page-section {
-            display: none;
+        #bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
         }
-        .page-section.active {
-            display: block;
-            animation: fadeIn 0.5s ease-in-out;
+        .sidebar-icon { width: 24px; height: 24px; stroke-width: 2; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .report-chart-container { position: relative; height: 450px; width: 100%; }
+        .page-content { display: none; }
+        .page-content.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        .hidden { display: none; }
+        .toggle-checkbox:checked { right: 0; border-color: #4338ca; /* indigo-700 */ }
+        .toggle-checkbox:checked + .toggle-label { background-color: #4338ca; /* indigo-700 */ }
+        #toast-notification {
+            transition: transform 0.3s ease-in-out, background-color 0.3s;
+            transform: translateX(120%);
         }
         
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
-        /* Modal transitions */
-        .modal.hidden {
-            opacity: 0;
-            transform: scale(0.95);
-            pointer-events: none;
-        }
-        .modal {
-            transition: opacity 0.2s ease, transform 0.2s ease;
+
+        #chat-widget-container.active {
+            display: flex;
+            transform: translateY(0);
+            opacity: 1;
         }
 
-        /* Chatbot message styling */
-        .chat-message {
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.75rem;
-            max-width: 85%;
-            margin-bottom: 0.5rem;
-            line-height: 1.4;
+        @keyframes nav-link-animation {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.92); }
+            100% { transform: scale(1); }
         }
-        .bot-message {
-            background-color: #e2e8f0; /* slate-200 */
-            color: #1e293b; /* slate-800 */
-            align-self: flex-start;
-        }
-        .user-message {
-            background-color: #4f46e5; /* indigo-600 */
-            color: white;
-            align-self: flex-end;
-        }
-        
-        /* Added for AI Coach Button pulse effect */
-        @keyframes pulse {
-          50% {
-            box-shadow: 0 0 0 1rem rgba(99, 102, 241, 0);
-          }
-        }
-        .animate-pulse-slow {
-          box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
-          animation: pulse 2s infinite;
-        }
-        
-        /* Style for the tooltip popup */
-        #ai-tooltip.show {
-            opacity: 1;
-            transform: translateX(-0.5rem);
+        .nav-link-active-animation {
+            animation: nav-link-animation 0.3s ease-in-out;
         }
     </style>
 </head>
-<body class="bg-slate-100">
+<body class="bg-slate-200">
+    <canvas id="bg-animation"></canvas>
 
-<div class="app-wrapper">
-
-    <!-- ======== Login Section ======== -->
-    <section id="login" class="page-section active">
-        <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80'); background-size: cover; background-position: center;">
-            <div class="absolute inset-0 bg-black/50"></div> <!-- Overlay for readability -->
-            
-            <!-- Background Shapes -->
-            <div class="absolute -top-48 -left-48 w-96 h-96 bg-indigo-500/20 rounded-full mix-blend-lighten animate-pulse"></div>
-            <div class="absolute -bottom-32 -right-16 w-80 h-80 bg-purple-500/20 rounded-full mix-blend-lighten animate-pulse" style="animation-delay: 1s;"></div>
-
-            <div class="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 space-y-6">
-                <div class="text-center">
-                    <h1 class="text-3xl font-bold text-gray-900">Counter Hub</h1>
-                    <p class="text-gray-500 mt-2">Welcome! Please sign in.</p>
-                </div>
-                <form id="login-form" class="space-y-4">
-                    <div>
-                        <label for="username" class="text-sm font-medium text-gray-700">Username</label>
-                        <input id="username" name="username" type="text" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="user">
-                    </div>
-                    <div>
-                        <label for="password" class="text-sm font-medium text-gray-700">Password</label>
-                        <input id="password" name="password" type="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="•••••">
-                    </div>
-                    <p id="login-error" class="text-red-500 text-sm text-center hidden">Invalid credentials. Hint: user / 12345</p>
-                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
-                        Login
-                    </button>
-                </form>
-            </div>
-        </div>
-    </section>
-
-    <!-- ======== Domain Selection Section ======== -->
-    <section id="domain-selection" class="page-section">
-        <div class="p-4 sm:p-6 md:p-8 min-h-screen bg-gradient-to-b from-slate-50 to-indigo-100 relative overflow-hidden">
-            <!-- Background Shapes -->
-            <div class="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 z-0">
-                <div class="w-96 h-96 bg-indigo-200/50 rounded-full blur-3xl"></div>
-            </div>
-            <div class="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 z-0">
-                <div class="w-96 h-96 bg-purple-200/50 rounded-full blur-3xl"></div>
-            </div>
-
-            <div class="max-w-4xl mx-auto relative z-10">
-                 <button id="about-btn" class="absolute top-0 left-0 text-sm font-medium text-gray-700 bg-white shadow-md rounded-lg px-4 py-2 hover:bg-slate-100 transition-colors flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                    <span>About This App</span>
-                </button>
-                <div class="relative rounded-2xl shadow-xl overflow-hidden text-center mb-12 mt-16 sm:mt-0">
-                    <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
-                         alt="Team working together on laptops" 
-                         class="w-full h-48 sm:h-64 object-cover"
-                         onerror="this.onerror=null;this.src='https://placehold.co/1200x256/8b5cf6/FFFFFF?text=Counter+Hub';">
-                    <div class="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-8">
-                        <h1 class="text-3xl sm:text-4xl font-bold text-white">Welcome to Counter Hub</h1>
-                        <p class="text-indigo-200 mt-2">What would you like to focus on today?</p>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <a href="#finance" class="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col items-center text-center border-2 border-green-200">
-                        <div class="w-16 h-16 rounded-full flex items-center justify-center bg-green-100 mb-4 text-green-600">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                        </div>
-                        <h3 class="font-semibold text-gray-800 text-lg">Finance Management</h3>
-                    </a>
-                    <a href="#productivity" class="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col items-center text-center border-2 border-blue-200">
-                        <div class="w-16 h-16 rounded-full flex items-center justify-center bg-blue-100 mb-4 text-blue-600">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                        </div>
-                        <h3 class="font-semibold text-gray-800 text-lg">Personal Productivity</h3>
-                    </a>
-                    <a href="#habits" class="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col items-center text-center border-2 border-red-200">
-                        <div class="w-16 h-16 rounded-full flex items-center justify-center bg-red-100 mb-4 text-red-600">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                        </div>
-                        <h3 class="font-semibold text-gray-800 text-lg">Healthy Habits</h3>
-                    </a>
-                    <a href="#goals" class="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col items-center text-center border-2 border-yellow-200">
-                        <div class="w-16 h-16 rounded-full flex items-center justify-center bg-yellow-100 mb-4 text-yellow-600">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
-                        </div>
-                        <h3 class="font-semibold text-gray-800 text-lg">Set & Achieve Goals</h3>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ======== Finance Section ======== -->
-    <section id="finance" class="page-section">
-         <div class="p-4 sm:p-6 md:p-8 min-h-screen">
-            <div class="max-w-5xl mx-auto">
-                <a href="#domain-selection" class="mb-8 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-800">&larr; Back to Hub</a>
-                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 text-center mb-8">Finance Management 💰</h1>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center mb-6">
-                    <div class="bg-white p-4 rounded-2xl shadow-lg">
-                        <div class="text-sm text-gray-500">Total Budget</div>
-                        <div id="summary-budget" class="text-2xl font-bold text-gray-800">₹0</div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl shadow-lg">
-                        <div class="text-sm text-gray-500">Total Spent</div>
-                        <div id="summary-spent" class="text-2xl font-bold text-red-600">₹0</div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl shadow-lg">
-                        <div class="text-sm text-gray-500">Remaining</div>
-                        <div id="summary-remaining" class="text-2xl font-bold text-green-600">₹0</div>
-                    </div>
-                </div>
-                
-                <div class="bg-white p-6 rounded-2xl shadow-lg mb-6">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Your Details</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="user-type" class="block text-sm font-medium text-gray-700">I am a...</label>
-                            <select id="user-type" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                                <option>College Student</option>
-                                <option>Job Person</option>
-                                <option>General Daily Life Person</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="monthly-budget" class="block text-sm font-medium text-gray-700">My Monthly Budget (₹)</label>
-                            <input type="number" id="monthly-budget" placeholder="e.g., 50000" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-                </div>
-
-                <div id="finance-suggestions" class="bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded-r-lg mb-6 hidden">
-                    <h3 class="font-bold mb-2">Tailored Suggestions For You!</h3>
-                    <ul id="suggestion-list" class="list-disc list-inside text-sm space-y-1"></ul>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-                    <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg">
-                        <h2 class="text-xl font-semibold text-gray-700 mb-4">Spending Breakdown</h2>
-                        <div class="flex justify-center items-center">
-                            <div id="pie-chart" class="w-40 h-40 rounded-full" style="background: conic-gradient(#e5e7eb 0deg 360deg);"></div>
-                        </div>
-                        <div id="pie-legend" class="mt-4 space-y-2 text-sm">
-                            <p class="text-center text-gray-500">Add an expense to see the chart.</p>
-                        </div>
-                    </div>
-                    <div class="lg:col-span-3 bg-white p-6 rounded-2xl shadow-lg">
-                        <h2 class="text-xl font-semibold text-gray-700 mb-4">Add New Expense</h2>
-                        <form id="add-expense-form" class="space-y-4">
-                            <div>
-                                <label for="expense-desc" class="block text-sm font-medium text-gray-700">Description</label>
-                                <input type="text" id="expense-desc" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Coffee">
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label for="expense-amount" class="block text-sm font-medium text-gray-700">Amount (₹)</label>
-                                    <input type="number" id="expense-amount" required min="0" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., 150">
-                                </div>
-                                <div>
-                                    <label for="expense-category" class="block text-sm font-medium text-gray-700">Category</label>
-                                    <select id="expense-category" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                                        <option>Food</option> <option>Transport</option> <option>Bills</option> <option>Entertainment</option> <option>Shopping</option> <option>Other</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">Add Expense</button>
-                        </form>
-                    </div>
-                </div>
-                
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Recent Transactions</h2>
-                    <div id="overspend-alert" class="mb-4 p-4 bg-red-100 text-red-800 rounded-lg text-center hidden">
-                         <p><span class="font-bold">Budget Alert!</span> You have exceeded your monthly budget. It's a good time to review your spending.</p>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (₹)</th>
-                                    <th class="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="expense-table-body" class="bg-white divide-y divide-gray-200">
-                                <tr id="empty-row"><td colspan="4" class="px-6 py-10 text-center text-sm text-gray-500">No expenses added yet.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ======== Productivity Section ======== -->
-    <section id="productivity" class="page-section">
-        <div class="p-4 sm:p-6 md:p-8 min-h-screen">
-            <div class="max-w-4xl mx-auto">
-                <a href="#domain-selection" class="mb-8 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-800">&larr; Back to Hub</a>
-                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 text-center mb-8">Personal Productivity 🚀</h1>
-                
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-white p-6 rounded-2xl shadow-lg text-center"><p class="text-sm font-medium text-gray-500">Tasks Complete</p><p class="text-3xl font-bold text-gray-800"><span id="tasks-done">1</span>/<span id="tasks-total">4</span></p></div>
-                    <div class="bg-white p-6 rounded-2xl shadow-lg text-center"><p class="text-sm font-medium text-gray-500">Productivity Score</p><p class="text-3xl font-bold text-blue-500"><span id="productivity-score">25</span>%</p></div>
-                     <div class="bg-white p-6 rounded-2xl shadow-lg text-center"><p class="text-sm font-medium text-gray-500">Daily Streak</p><p class="text-3xl font-bold text-orange-500">🔥 5</p></div>
-                </div>
-                
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">My Daily Routine</h2>
-                    <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                        <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full progress-bar" style="width: 25%"></div>
-                    </div>
-                    <ul id="task-list" class="space-y-3">
-                        <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-indigo-600" checked><span class="ml-3 text-gray-700 line-through">Morning workout</span></li>
-                        <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-indigo-600"><span class="ml-3 text-gray-700">Plan the day's tasks</span></li>
-                        <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-indigo-600"><span class="ml-3 text-gray-700">Read for 30 minutes</span></li>
-                        <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-indigo-600"><span class="ml-3 text-gray-700">Review daily goals</span></li>
-                    </ul>
-                </div>
-                <div id="motivation-popup" class="mt-6 p-4 bg-indigo-600 text-white rounded-2xl shadow-lg text-center hidden"><p class="font-bold text-lg">Great job! Keep up the fantastic work! ✨</p></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ======== Healthy Habits Section ======== -->
-    <section id="habits" class="page-section">
-        <div class="p-4 sm:p-6 md:p-8 min-h-screen">
-            <div class="max-w-4xl mx-auto">
-                <a href="#domain-selection" class="mb-8 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-800">&larr; Back to Hub</a>
-                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 text-center mb-8">Healthy Habits ❤️</h1>
-                <div class="bg-white p-6 rounded-2xl shadow-lg mb-6">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">What's your main health focus?</h2>
-                     <select id="health-focus" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                        <option value="none" selected disabled>Select a focus area...</option>
-                        <option value="hydration">Improve Hydration</option>
-                        <option value="sleep">Get Better Sleep</option>
-                        <option value="activity">Increase Physical Activity</option>
-                        <option value="walk">Go for a Morning Walk</option>
-                        <option value="running">Start Running</option>
-                        <option value="reading">Read More Books</option>
-                    </select>
-                </div>
-                <div id="habit-tracker-container" class="hidden">
-                    <div class="bg-white p-6 rounded-2xl shadow-lg mb-6">
-                        <h2 id="habit-title" class="text-xl font-semibold text-gray-700 mb-4"></h2>
-                        <p id="habit-advice" class="text-sm text-gray-600 mb-4"></p>
-                        <ul id="habit-checklist" class="space-y-3"></ul>
-                    </div>
-                    <div id="achievement-container" class="text-center">
-                        <h3 class="font-semibold text-gray-600 mb-2">Your Achievements</h3>
-                        <div id="badge-display" class="flex justify-center gap-4"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ======== Goals Section ======== -->
-    <section id="goals" class="page-section">
-        <div class="p-4 sm:p-6 md:p-8 min-h-screen">
-            <div class="max-w-4xl mx-auto">
-                <a href="#domain-selection" class="mb-8 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-800">&larr; Back to Hub</a>
-                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 text-center mb-8">Set & Achieve Goals 🎯</h1>
-                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label for="goal-title" class="block text-sm font-medium text-gray-700">Goal Title</label>
-                            <input type="text" id="goal-title" value="Learn Basic Spanish" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                        </div>
-                        <div>
-                            <label for="goal-deadline" class="block text-sm font-medium text-gray-700">Deadline</label>
-                            <input type="date" id="goal-deadline" value="2025-12-31" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                        </div>
-                    </div>
-                    <h2 class="text-xl font-semibold text-gray-700 mt-6 mb-4">Your Timeline & Milestones</h2>
-                    <div>
-                        <div class="timeline-item completed"><div class="timeline-line"></div><div class="timeline-dot"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div><div class="font-medium text-gray-800">Complete Duolingo Section 1</div><p class="text-sm text-gray-500">Learn basic greetings and phrases.</p></div>
-                        <div class="timeline-item completed"><div class="timeline-line"></div><div class="timeline-dot"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div><div class="font-medium text-gray-800">Practice with a language partner</div><p class="text-sm text-gray-500">Have a 15-minute conversation.</p></div>
-                        <div class="timeline-item"><div class="timeline-line"></div><div class="timeline-dot font-bold text-gray-500">3</div><div class="font-medium text-gray-800">Watch a movie in Spanish</div><p class="text-sm text-gray-500">Use English subtitles to start.</p></div>
-                        <div class="timeline-item"><div class="timeline-dot font-bold text-gray-500">4</div><div class="font-medium text-gray-800">Read a children's book</div><p class="text-sm text-gray-500">Translate one new word per page.</p></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-
-    <!-- ======== FLOATING BUTTONS AND MODALS ======== -->
-    
-    <div id="floating-buttons-container" class="hidden">
-        <!-- About Modal -->
-        <div id="about-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
-            <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-8 relative">
-                <button id="close-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">About Counter Hub</h2>
-                <div class="space-y-4 text-gray-600 max-h-[70vh] overflow-y-auto pr-4">
-                    <div>
-                        <h3 class="font-semibold text-lg text-green-600">💰 Finance Management</h3>
-                        <p>Take control of your finances. Set a monthly budget, track every expense in real-time, and visualize your spending habits with a dynamic pie chart. Get smart, personalized suggestions based on your lifestyle to save more and spend smarter.</p>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-lg text-blue-600">🚀 Personal Productivity</h3>
-                        <p>Organize your day and boost your efficiency. Create a simple to-do list, monitor your progress with a visual bar, and build motivational streaks for completing tasks consistently. Stay focused and achieve more every day.</p>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-lg text-red-600">❤️ Healthy Habits</h3>
-                        <p>Invest in your well-being. Choose a health focus like hydration, sleep, or activity, and follow a simple checklist to build positive routines. Earn badges and celebrate your achievements as you create a healthier lifestyle.</p>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-lg text-yellow-600">🎯 Set & Achieve Goals</h3>
-                        <p>Turn your dreams into reality. Define your long-term goals, set a deadline, and break them down into smaller, manageable milestones on an interactive timeline. Track your journey and stay motivated until you reach your ambitions.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Contact Us Button -->
-        <button id="contact-us-btn" class="fixed top-4 right-4 bg-white shadow-lg rounded-full h-12 w-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-indigo-600 transition-all z-40">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-        </button>
-        
-        <!-- AI Coach Button with Tooltip -->
-        <div class="fixed bottom-4 right-4 z-40 flex items-center">
-            <div id="ai-tooltip" class="absolute right-20 bg-white text-gray-800 text-sm font-semibold px-4 py-2 rounded-full shadow-lg opacity-0 transition-all duration-300 whitespace-nowrap transform">
-                Chat with AI
-            </div>
-            <button id="ai-coach-btn" class="bg-indigo-600 text-white rounded-full h-16 w-16 flex items-center justify-center shadow-xl hover:bg-indigo-700 transition-transform hover:scale-110 z-10 animate-pulse-slow">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect x="4" y="12" width="16" height="8" rx="2"></rect><path d="M4 12v-2a2 2 0 0 1 2-2h4"></path><path d="M12 12v-2a2 2 0 0 1 2-2h4"></path></svg>
+    <!-- TOP RIGHT LOGIN CONTAINER -->
+    <div class="fixed top-6 right-6 z-30">
+        <div id="auth-container" class="flex items-center space-x-2">
+            <button id="login-guest-btn" class="flex items-center bg-white/80 backdrop-blur-sm border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition transform hover:scale-105">
+               Login as Guest
+            </button>
+            <button id="login-btn" class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm transform hover:scale-105">
+                Login
             </button>
         </div>
-
-        <!-- AI Chat Modal -->
-        <div id="ai-chat-modal" class="modal fixed bottom-24 right-4 w-full max-w-md mx-auto sm:mx-0 sm:w-96 hidden z-50">
-            <div class="bg-white rounded-2xl shadow-2xl flex flex-col h-[60vh] max-h-[480px]">
-                <div class="flex justify-between items-center p-4 bg-indigo-600 text-white rounded-t-2xl">
-                    <h3 class="font-bold text-lg">AI Life Coach</h3>
-                    <button id="close-chat-btn" class="text-white hover:text-indigo-200 text-2xl leading-none">&times;</button>
-                </div>
-                <div id="life-coach-chat-window" class="flex-1 p-4 flex flex-col gap-2 overflow-y-auto">
-                    <!-- Messages will be injected here -->
-                </div>
-                <div class="p-4 border-t">
-                    <div class="flex gap-2">
-                        <input type="text" id="life-coach-chat-input" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Ask for advice...">
-                        <button id="life-coach-chat-send" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Contact Us Modal -->
-        <div id="contact-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
-            <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 relative">
-                 <button id="close-contact-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
-                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Contact Support</h2>
-                 <p class="text-gray-600 mb-6">Have a technical issue? Describe it below or chat with our support bot for immediate help.</p>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Technical Support AI Chat -->
-                    <div class="flex flex-col">
-                        <h3 class="font-semibold text-lg text-gray-700 mb-2">AI Support Chat</h3>
-                         <div id="tech-support-chat-window" class="flex-1 border rounded-lg p-3 flex flex-col gap-2 overflow-y-auto h-64 bg-slate-50">
-                            <!-- Tech support messages go here -->
-                        </div>
-                        <div class="flex gap-2 mt-2">
-                            <input type="text" id="tech-support-input" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Describe your issue...">
-                            <button id="tech-support-send" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800">Send</button>
-                        </div>
-                    </div>
-                    <!-- Contact Form -->
-                     <div>
-                        <h3 class="font-semibold text-lg text-gray-700 mb-2">Send a Message</h3>
-                        <form id="contact-form" class="space-y-4">
-                            <div>
-                                <label for="contact-email" class="text-sm font-medium text-gray-700">Your Email</label>
-                                <input type="email" id="contact-email" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md">
-                            </div>
-                             <div>
-                                <label for="contact-message" class="text-sm font-medium text-gray-700">Message</label>
-                                <textarea id="contact-message" rows="4" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
-                            </div>
-                            <button type="submit" class="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Submit Ticket</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
+        <div id="user-welcome-container" class="hidden items-center space-x-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+            <img id="welcome-avatar-img" src="" alt="User Avatar" class="rounded-full h-8 w-8">
+            <p class="text-slate-700 font-medium">Welcome, <span id="welcome-username"></span>!</p>
         </div>
     </div>
 
-</div>
+    <!-- =========== CONTAINER: MAIN DASHBOARD APP =========== -->
+    <div id="app-container" class="flex min-h-screen">
+        <aside class="w-20 lg:w-64 bg-white/80 backdrop-blur-sm border-r border-slate-200 flex flex-col items-center lg:items-start p-4 transition-all duration-300">
+            <div class="flex items-center justify-center lg:justify-start w-full mb-10">
+                <svg class="h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M12 20h4"/><path d="M12 4H8"/><path d="M20 12h-4"/><path d="M4 12h4"/></svg>
+                <h1 class="text-xl font-bold text-slate-800 ml-3 hidden lg:block">GovSentiment</h1>
+            </div>
+            <nav id="sidebar-nav" class="flex flex-col space-y-4 w-full">
+                <a href="#" class="nav-link flex items-center p-3 bg-indigo-100 text-indigo-600 rounded-lg" aria-current="page" data-target="page-dashboard"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 20V10a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v10"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/></svg><span class="ml-4 font-semibold hidden lg:block">Dashboard</span></a>
+                <a href="#" class="nav-link flex items-center p-3 text-slate-600 hover:bg-slate-100 rounded-lg" data-target="page-reports"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg><span class="ml-4 font-semibold hidden lg:block">Reports</span></a>
+                <a href="#" class="nav-link flex items-center p-3 text-slate-600 hover:bg-slate-100 rounded-lg" data-target="page-users"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="ml-4 font-semibold hidden lg:block">Users</span></a>
+                <a href="#" class="nav-link flex items-center p-3 text-slate-600 hover:bg-slate-100 rounded-lg" data-target="page-settings"><svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1 0 2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span class="ml-4 font-semibold hidden lg:block">Settings</span></a>
+            </nav>
+            <div class="mt-auto flex flex-col w-full items-center lg:items-start">
+                <div class="flex items-center p-3 text-slate-600 cursor-pointer">
+                    <img id="sidebar-avatar-img" src="https://placehold.co/40x40/cbd5e1/475569?text=G" alt="User Avatar" class="rounded-full">
+                    <div class="ml-3 hidden lg:block">
+                        <p id="sidebar-username" class="font-semibold text-sm">Guest User</p>
+                        <p id="sidebar-role" class="text-xs text-slate-500">Public Access</p>
+                    </div>
+                </div>
+                <button id="logout-button" class="w-full flex items-center p-3 text-red-500 hover:bg-red-50 rounded-lg mt-2 hidden">
+                    <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span class="ml-4 font-semibold hidden lg:block">Logout</span>
+                </button>
+            </div>
+        </aside>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
+        <main class="flex-1 p-6 lg:p-10">
+            <!-- PAGE: Dashboard -->
+            <div id="page-dashboard" class="page-content active">
+                <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-slate-800">Draft Legislation Feedback</h1>
+                        <p class="text-slate-500 mt-1">Review and analyze stakeholder comments.</p>
+                    </div>
+                </header>
+                 <div class="flex items-center space-x-2 mt-4 md:mt-0 mb-8">
+                        <button id="export-button" class="flex items-center bg-white/80 backdrop-blur-sm border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition transform hover:scale-105">
+                            <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Export Analysis
+                        </button>
+                        <button id="upload-button" class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm transform hover:scale-105">
+                            <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                            Upload Your Comment
+                        </button>
+                        <input type="file" id="file-upload-input" class="hidden" accept=".csv, .txt, .doc, .docx, .xls, .xlsx">
+                    </div>
 
-    // --- Page Navigation ---
-    const pages = document.querySelectorAll('.page-section');
-    const floatingButtons = document.getElementById('floating-buttons-container');
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Total Comments</h3><div class="p-2 bg-indigo-100 rounded-lg"><svg class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div></div><p id="stat-total" class="text-4xl font-bold text-slate-800 mt-2">0</p><p class="text-sm text-slate-500 flex items-center mt-1">Total results</p></div>
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Positive</h3><div class="p-2 bg-green-100 rounded-lg"><svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a2 2 0 0 1 1.79 1.11L15 5.88z"/></svg></div></div><p id="stat-positive" class="text-4xl font-bold text-slate-800 mt-2">0</p><p id="stat-positive-sub" class="text-sm text-slate-500 mt-1">0% of total</p></div>
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Negative</h3><div class="p-2 bg-red-100 rounded-lg"><svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a2 2 0 0 1-1.79-1.11L9 18.12z"/></svg></div></div><p id="stat-negative" class="text-4xl font-bold text-slate-800 mt-2">0</p><p id="stat-negative-sub" class="text-sm text-slate-500 mt-1">0% of total</p></div>
+                    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1"><div class="flex justify-between items-start"><h3 class="text-slate-500 font-medium">Neutral</h3><div class="p-2 bg-yellow-100 rounded-lg"><svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="8" x2="16" y1="12" y2="12"/></svg></div></div><p id="stat-neutral" class="text-4xl font-bold text-slate-800 mt-2">0</p><p id="stat-neutral-sub" class="text-sm text-slate-500 mt-1">0% of total</p></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div class="lg:col-span-1 bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm"><h3 class="text-lg font-semibold text-slate-800 mb-4">Sentiment Distribution</h3><div class="chart-container"><canvas id="sentimentChart"></canvas></div></div>
+                    <div class="lg:col-span-2 bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm"><h3 class="text-lg font-semibold text-slate-800 mb-4">Top Keywords</h3><div id="keyword-list" class="space-y-3 overflow-y-auto" style="height: 300px;"></div></div>
+                </div>
+                <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4"><h3 class="text-lg font-semibold text-slate-800">Individual Comments</h3><div class="flex items-center space-x-2 mt-4 md:mt-0 w-full md:w-auto"><div class="relative w-full md:w-64"><input type="text" id="searchInput" placeholder="Search comments..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"><svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div><select id="sentimentFilter" class="border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"><option value="all">All Sentiments</option><option value="positive">Positive</option><option value="negative">Negative</option><option value="neutral">Neutral</option></select></div></div>
+                    <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th scope="col" class="px-6 py-4 font-semibold">Comment Summary</th><th scope="col" class="px-6 py-4 font-semibold">Sentiment</th><th scope="col" class="px-6 py-4 font-semibold">Keywords</th><th scope="col" class="px-6 py-4 font-semibold">Provision</th><th scope="col" class="px-6 py-4 font-semibold text-center">Actions</th></tr></thead><tbody id="commentsTableBody"></tbody></table></div>
+                    <div class="flex justify-between items-center mt-4"><span class="text-sm text-slate-500" id="paginationInfo"></span><div class="flex items-center space-x-1" id="paginationControls"></div></div>
+                </div>
+            </div>
+            <!-- PAGE: Reports -->
+            <div id="page-reports" class="page-content">
+                 <h1 class="text-3xl font-bold text-slate-800 mb-4">Sentiment by Provision Report</h1>
+                 <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-slate-600 mb-4">This report aggregates comments by legislative provision, showing the sentiment split for each section.</p><div class="report-chart-container"><canvas id="provisionChart"></canvas></div></div>
+            </div>
+            <!-- PAGE: Users -->
+            <div id="page-users" class="page-content">
+                 <h1 class="text-3xl font-bold text-slate-800 mb-4">User Management</h1>
+                 <div class="bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200 shadow-sm"><div class="flex justify-between items-center p-4 border-b"><h3 class="text-lg font-semibold text-slate-800">All Users</h3><button class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-medium"><svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add User</button></div><div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th scope="col" class="px-6 py-3">Name</th><th scope="col" class="px-6 py-3">Email</th><th scope="col" class="px-6 py-3">Role</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3 text-center">Actions</th></tr></thead><tbody><tr class="bg-white border-b hover:bg-slate-50"><td class="px-6 py-4 font-medium text-slate-900">Admin</td><td class="px-6 py-4">admin@gov.mail</td><td class="px-6 py-4">Admin</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span></td><td class="px-6 py-4 text-center font-medium"><a href="#" class="text-indigo-600 hover:underline">Edit</a></td></tr><tr class="bg-white border-b hover:bg-slate-50"><td class="px-6 py-4 font-medium text-slate-900">Jane Smith</td><td class="px-6 py-4">jane.smith@gov.mail</td><td class="px-6 py-4">Analyst</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span></td><td class="px-6 py-4 text-center font-medium"><a href="#" class="text-indigo-600 hover:underline">Edit</a></td></tr><tr class="bg-white border-b hover:bg-slate-50"><td class="px-6 py-4 font-medium text-slate-900">Robert Brown</td><td class="px-6 py-4">robert.brown@gov.mail</td><td class="px-6 py-4">Viewer</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">Inactive</span></td><td class="px-6 py-4 text-center font-medium"><a href="#" class="text-indigo-600 hover:underline">Edit</a></td></tr></tbody></table></div></div>
+            </div>
+            <!-- PAGE: Settings -->
+            <div id="page-settings" class="page-content">
+                 <h1 class="text-3xl font-bold text-slate-800 mb-4">Settings</h1>
+                 <div class="bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200 max-w-2xl shadow-sm"><div class="p-6 border-b"><h3 class="text-lg font-semibold text-slate-800">Profile</h3><p class="text-sm text-slate-500">This information is associated with your account.</p></div><div class="p-6 space-y-4"><div><label for="name" class="block text-sm font-medium text-slate-700">Name</label><input type="text" id="name" value="Admin" disabled class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-slate-100 text-slate-500 cursor-not-allowed sm:text-sm"></div><div><label for="email" class="block text-sm font-medium text-slate-700">Email</label><input type="email" id="email" value="admin@gov.mail" disabled class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-slate-100 text-slate-500 cursor-not-allowed sm:text-sm"></div></div><div class="p-6 border-t"><h3 class="text-lg font-semibold text-slate-800">Notifications</h3><p class="text-sm text-slate-500">Manage how you receive alerts.</p></div><div class="p-6 space-y-4"><div class="relative flex items-center justify-between"><div><span class="font-medium text-slate-800">Daily Digest Email</span><p class="text-sm text-slate-500">Receive a summary of all comments each morning.</p></div><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle-1" id="toggle-1" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" checked/><label for="toggle-1" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label></div></div><div class="relative flex items-center justify-between"><div><span class="font-medium text-slate-800">New Comment Alerts</span><p class="text-sm text-slate-500">Receive an email whenever a new comment is imported.</p></div><div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"><input type="checkbox" name="toggle-2" id="toggle-2" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/><label for="toggle-2" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label></div></div></div><div class="px-6 py-4 bg-slate-50 border-t text-right rounded-b-xl"><button class="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-medium ml-auto">Save Changes</button></div></div>
+            </div>
+            <footer class="text-center mt-10 text-sm text-slate-500"><p>Ministry of Legislative Affairs | GovSentiment Analysis Portal</p></footer>
+        </main>
+    </div>
 
-    function showPage(hash) {
-        const cleanHash = hash.startsWith('#') ? hash : '#' + hash;
-        pages.forEach(page => page.classList.remove('active'));
-        const targetPage = document.querySelector(cleanHash);
+     <!-- MODAL for LOGIN -->
+    <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+       <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-2xl border border-slate-200">
+           <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">Portal Login</h2>
+                <button id="close-login-modal-btn" class="text-slate-500 hover:text-slate-800"><svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+           </div>
+            <form id="login-form">
+                <div class="mb-5">
+                    <label for="username-input" class="block text-sm font-medium text-slate-700 mb-2">Username</label>
+                    <input type="text" id="username-input" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" value="admin" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password-input" class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                    <input type="password" id="password-input" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" value="12345" required>
+                </div>
+                <p id="login-error" class="text-sm text-red-600 mb-4 text-center hidden"></p>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold text-lg">Sign In</button>
+            </form>
+        </div>
+    </div>
 
-        if (cleanHash === '#login' || !targetPage) {
-            document.querySelector('#login').classList.add('active');
-            floatingButtons.classList.add('hidden');
-        } else {
-            targetPage.classList.add('active');
-            floatingButtons.classList.remove('hidden');
-        }
-    }
+    <!-- MODAL for viewing comment details -->
+    <div id="view-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg border p-6 relative">
+            <button id="close-modal-btn" class="absolute top-4 right-4 text-slate-500 hover:text-slate-800"><svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            <h2 id="modal-title" class="text-xl font-bold text-slate-800 mb-2">Comment Details</h2>
+            <p id="modal-provision" class="text-sm text-slate-500 mb-4">Provision</p>
+            <div id="modal-sentiment" class="mb-4"></div>
+            <div class="bg-slate-50 p-4 rounded-lg border max-h-80 overflow-y-auto">
+                <h4 class="font-semibold text-slate-700 mb-1">Full Comment Text:</h4>
+                <p id="modal-full-text" class="text-slate-600 whitespace-pre-wrap"></p>
+            </div>
+        </div>
+    </div>
     
-    window.addEventListener('hashchange', () => showPage(window.location.hash));
-    // Initial page load handler
-    showPage(window.location.hash || '#login');
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-notification" class="fixed top-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg">
+        <p id="toast-message">File uploaded successfully!</p>
+    </div>
+
+    <!-- TEMPLATE for a single comment row in the table -->
+    <template id="comment-row-template">
+        <tr class="bg-white/80 backdrop-blur-sm border-b border-slate-200/50 hover:bg-slate-50/80">
+            <td class="px-6 py-4 font-medium text-slate-900 data-summary">Summary placeholder<p class="font-normal text-slate-500 mt-1 italic line-clamp-1 data-text">"Full text placeholder"</p></td>
+            <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full data-sentiment">Sentiment</span></td>
+            <td class="px-6 py-4"><div class="flex flex-wrap gap-1 data-keywords"></div></td>
+            <td class="px-6 py-4 data-provision">Provision placeholder</td>
+            <td class="px-6 py-4 text-center"><div class="flex justify-center items-center space-x-1"><button class="p-1.5 text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-colors action-flag" title="Flag Comment"><svg class="h-5 w-5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg></button><button class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors action-view" title="View Details"><svg class="h-5 w-5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></td>
+        </tr>
+    </template>
+
+    <!-- CHATBOT WIDGET -->
+    <button id="chat-toggle-button" class="fixed bottom-6 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 transition-transform hover:scale-110 z-20">
+        <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+        </svg>
+    </button>
+    <div id="chat-widget-container" class="hidden fixed bottom-24 right-6 w-96 bg-white/80 backdrop-blur-sm rounded-xl shadow-2xl border border-slate-200 flex-col transition-all duration-300 transform translate-y-4 opacity-0 z-20">
+        <div class="flex justify-between items-center p-4 bg-slate-50/80 rounded-t-xl border-b">
+            <h3 class="font-bold text-slate-800">AI Legislative Assistant</h3>
+            <button id="chat-close-btn" class="text-slate-500 hover:text-slate-800">
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+        <div id="chat-messages" class="flex-1 p-4 space-y-4 overflow-y-auto h-96">
+            <!-- Initial bot message -->
+             <div class="flex items-start gap-3">
+                <div class="p-2 bg-indigo-100 rounded-full"><svg class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M12 20h4"/><path d="M12 4H8"/><path d="M20 12h-4"/><path d="M4 12h4"/></svg></div>
+                <div class="bg-slate-100 text-slate-700 p-3 rounded-lg rounded-tl-none max-w-xs">
+                    <p class="text-sm">Hello! How can I help you analyze legislative sentiment today?</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-white/80 backdrop-blur-sm rounded-b-xl border-t">
+            <form id="chat-form" class="flex items-center gap-2">
+                <input type="text" id="chat-input" placeholder="Ask a question..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" autocomplete="off">
+                <button id="chat-send-btn" type="submit" class="bg-indigo-600 text-white p-2.5 rounded-lg hover:bg-indigo-700 transition-all shadow-sm">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
+                </button>
+            </form>
+        </div>
+    </div>
 
 
-    // --- Login Logic ---
-    const loginForm = document.getElementById('login-form');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const loginError = document.getElementById('login-error');
-    passwordInput.value = '12345'; // Pre-fill for convenience as requested
-    
-    loginForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (usernameInput.value.toLowerCase() === 'user' && passwordInput.value === '12345') {
-            loginError.classList.add('hidden');
-            window.location.hash = '#domain-selection';
-        } else {
-            loginError.classList.remove('hidden');
-        }
-    });
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
 
-    // --- About Modal Logic ---
-    const aboutBtn = document.getElementById('about-btn');
-    const aboutModal = document.getElementById('about-modal');
-    const closeModalBtn = document.getElementById('close-modal-btn');
-
-    aboutBtn.addEventListener('click', () => {
-        aboutModal.classList.remove('hidden');
-    });
-
-    closeModalBtn.addEventListener('click', () => {
-        aboutModal.classList.add('hidden');
-    });
-
-    aboutModal.addEventListener('click', (e) => {
-        if (e.target === aboutModal) {
-            aboutModal.classList.add('hidden');
-        }
-    });
-    
-    // --- Contact Us Modal ---
-    const contactUsBtn = document.getElementById('contact-us-btn');
-    const contactModal = document.getElementById('contact-modal');
-    const closeContactBtn = document.getElementById('close-contact-btn');
-    contactUsBtn.addEventListener('click', () => contactModal.classList.remove('hidden'));
-    closeContactBtn.addEventListener('click', () => contactModal.classList.add('hidden'));
-    contactModal.addEventListener('click', e => { if(e.target === contactModal) contactModal.classList.add('hidden'); });
-
-    // --- Finance Module Logic ---
-    const userTypeSelect = document.getElementById('user-type');
-    const monthlyBudgetInput = document.getElementById('monthly-budget');
-    const suggestionsContainer = document.getElementById('finance-suggestions');
-    const suggestionList = document.getElementById('suggestion-list');
-    const addExpenseForm = document.getElementById('add-expense-form');
-    const expenseTableBody = document.getElementById('expense-table-body');
-    const summaryBudget = document.getElementById('summary-budget');
-    const summarySpent = document.getElementById('summary-spent');
-    const summaryRemaining = document.getElementById('summary-remaining');
-    const overspendAlert = document.getElementById('overspend-alert');
-    const pieChart = document.getElementById('pie-chart');
-    const pieLegend = document.getElementById('pie-legend');
-    
-    const categoryColors = {
-        'Food': '#f59e0b', 'Transport': '#3b82f6', 'Bills': '#ef4444', 
-        'Entertainment': '#8b5cf6', 'Shopping': '#ec4899', 'Other': '#6b7280'
-    };
-
-    let financeState = { budget: 0, expenses: [] };
-    
-    const suggestions = {
-        'College Student': ['Utilize student discounts.', 'Prioritize cooking at home.', 'Look for free campus events.'],
-        'Job Person': ['Automate savings on payday.', 'Review monthly subscriptions.', 'Create an emergency fund.'],
-        'General Daily Life Person': ['Create a weekly meal plan.', 'Compare prices for large purchases.', 'Use public transport or carpool.']
-    };
-
-    function renderFinanceUI() {
-        const { budget, expenses } = financeState;
-        const totalSpent = expenses.reduce((sum, ex) => sum + ex.amount, 0);
-        const remaining = budget - totalSpent;
-
-        summaryBudget.textContent = `₹${budget.toLocaleString('en-IN')}`;
-        summarySpent.textContent = `₹${totalSpent.toLocaleString('en-IN')}`;
-        summaryRemaining.textContent = `₹${remaining.toLocaleString('en-IN')}`;
-        overspendAlert.classList.toggle('hidden', remaining >= 0);
-
-        expenseTableBody.innerHTML = '';
-        if (expenses.length === 0) {
-            expenseTableBody.innerHTML = `<tr id="empty-row"><td colspan="4" class="px-6 py-10 text-center text-sm text-gray-500">No expenses added yet.</td></tr>`;
-        } else {
-            expenses.forEach(ex => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">${ex.description}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ex.category}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-medium">₹${ex.amount.toLocaleString('en-IN')}</td>
-                    <td class="px-1 py-4 text-center"><button data-id="${ex.id}" class="delete-expense-btn text-gray-400 hover:text-red-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
-                    </button></td>`;
-                expenseTableBody.appendChild(row);
-            });
-        }
-        
-        const spendingByCategory = expenses.reduce((acc, ex) => {
-            acc[ex.category] = (acc[ex.category] || 0) + ex.amount;
-            return acc;
-        }, {});
-        
-        let gradientString = '', legendHTML = '', currentAngle = 0;
-        if (totalSpent > 0) {
-             for (const category in spendingByCategory) {
-                const amount = spendingByCategory[category];
-                const percentage = (amount / totalSpent) * 100;
-                const angle = (percentage / 100) * 360;
-                const color = categoryColors[category];
-                gradientString += `, ${color} ${currentAngle}deg ${currentAngle + angle}deg`;
-                currentAngle += angle;
-                legendHTML += `<div class="flex items-center justify-between"><div class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: ${color};"></span><span>${category}</span></div><span class="font-medium">₹${amount.toLocaleString('en-IN')}</span></div>`;
+            function isWebGLAvailable() {
+                try {
+                    const canvas = document.createElement( 'canvas' );
+                    return !! ( window.WebGLRenderingContext && ( canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' ) ) );
+                } catch ( e ) {
+                    return false;
+                }
             }
-            pieChart.style.background = `conic-gradient(${gradientString.substring(2)})`;
-            pieLegend.innerHTML = legendHTML;
-        } else {
-             pieChart.style.background = '#e5e7eb';
-             pieLegend.innerHTML = '<p class="text-center text-gray-500">Add an expense to see the chart.</p>';
-        }
-    }
+            
+             // --- 3D BACKGROUND ANIMATION ---
+            function init3DBackground() {
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-animation'), alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                const particles = [];
+                const particleCount = 200;
+                const geometry = new THREE.IcosahedronGeometry(0.1, 0);
 
-    userTypeSelect.addEventListener('change', (e) => {
-        const userType = e.target.value;
-        if (suggestions[userType]) {
-            suggestionList.innerHTML = suggestions[userType].map(tip => `<li>${tip}</li>`).join('');
-            suggestionsContainer.classList.remove('hidden');
-        }
-    });
+                for (let i = 0; i < particleCount; i++) {
+                    const material = new THREE.MeshBasicMaterial({ color: 0x64748b, wireframe: true });
+                    const particle = new THREE.Mesh(geometry, material);
+                    
+                    particle.position.x = (Math.random() - 0.5) * 20;
+                    particle.position.y = (Math.random() - 0.5) * 20;
+                    particle.position.z = (Math.random() - 0.5) * 20;
+                    
+                    particle.velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.01,
+                        (Math.random() - 0.5) * 0.01,
+                        (Math.random() - 0.5) * 0.01
+                    );
 
-    monthlyBudgetInput.addEventListener('input', (e) => {
-        financeState.budget = Number(e.target.value) || 0;
-        renderFinanceUI();
-    });
+                    particles.push(particle);
+                    scene.add(particle);
+                }
+                
+                const lines = new THREE.Group();
+                scene.add(lines);
 
-    addExpenseForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        financeState.expenses.unshift({
-            id: Date.now(),
-            description: document.getElementById('expense-desc').value,
-            amount: parseFloat(document.getElementById('expense-amount').value),
-            category: document.getElementById('expense-category').value
+                camera.position.z = 5;
+
+                function animate() {
+                    requestAnimationFrame(animate);
+                    
+                    lines.children.forEach(line => line.geometry.dispose());
+                    lines.children = [];
+
+                    for (let i = 0; i < particleCount; i++) {
+                        const p1 = particles[i];
+                        p1.position.add(p1.velocity);
+                        
+                        if (p1.position.x < -10 || p1.position.x > 10) p1.velocity.x *= -1;
+                        if (p1.position.y < -10 || p1.position.y > 10) p1.velocity.y *= -1;
+                        if (p1.position.z < -10 || p1.position.z > 10) p1.velocity.z *= -1;
+
+                        for (let j = i + 1; j < particleCount; j++) {
+                            const p2 = particles[j];
+                            const distance = p1.position.distanceTo(p2.position);
+
+                            if (distance < 1.5) {
+                                const lineMaterial = new THREE.LineBasicMaterial({
+                                    color: 0x64748b,
+                                    transparent: true,
+                                    opacity: 1 - distance / 1.5
+                                });
+                                const lineGeometry = new THREE.BufferGeometry().setFromPoints([p1.position, p2.position]);
+                                const line = new THREE.Line(lineGeometry, lineMaterial);
+                                lines.add(line);
+                            }
+                        }
+                    }
+
+                    scene.rotation.y += 0.0002;
+                    scene.rotation.x += 0.0001;
+
+                    renderer.render(scene, camera);
+                }
+
+                function onWindowResize() {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                }
+
+                window.addEventListener('resize', onWindowResize, false);
+                animate();
+            }
+            
+            if (isWebGLAvailable()) {
+                init3DBackground();
+            } else {
+                console.warn("WebGL not available. Skipping 3D background.");
+                document.getElementById('bg-animation').style.display = 'none';
+            }
+            
+            // --- STATE MANAGEMENT ---
+            let allComments = [];
+            let filteredComments = [];
+            let currentPage = 1;
+            const itemsPerPage = 5;
+            let sentimentChart = null;
+            let provisionChartInstance = null;
+            const sentimentColors = {
+                positive: '#22c55e', // green-500
+                negative: '#ef4444', // red-500
+                neutral: '#f59e0b',  // amber-500
+            };
+            const sentimentBGClasses = {
+                positive: 'bg-green-100 text-green-800',
+                negative: 'bg-red-100 text-red-800',
+                neutral: 'bg-yellow-100 text-yellow-800',
+            };
+            
+            // --- DOM ELEMENT SELECTORS ---
+            const tableBody = document.getElementById('commentsTableBody');
+            const searchInput = document.getElementById('searchInput');
+            const sentimentFilter = document.getElementById('sentimentFilter');
+            const paginationInfo = document.getElementById('paginationInfo');
+            const paginationControls = document.getElementById('paginationControls');
+            const commentTemplate = document.getElementById('comment-row-template');
+            const keywordListContainer = document.getElementById('keyword-list');
+            const sidebarNav = document.getElementById('sidebar-nav');
+            const navLinks = sidebarNav.querySelectorAll('.nav-link');
+            const pageContents = document.querySelectorAll('#app-container .page-content');
+            const logoutButton = document.getElementById('logout-button');
+            const uploadButton = document.getElementById('upload-button');
+            const fileUploadInput = document.getElementById('file-upload-input');
+            const exportButton = document.getElementById('export-button');
+            const viewModal = document.getElementById('view-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const modalTitle = document.getElementById('modal-title');
+            const modalProvision = document.getElementById('modal-provision');
+            const modalSentiment = document.getElementById('modal-sentiment');
+            const modalFullText = document.getElementById('modal-full-text');
+            const toast = document.getElementById('toast-notification');
+            const toastMessage = document.getElementById('toast-message');
+
+             // --- AUTH ELEMENTS ---
+            const loginModal = document.getElementById('login-modal');
+            const closeLoginModalBtn = document.getElementById('close-login-modal-btn');
+            const loginForm = document.getElementById('login-form');
+            const usernameInput = document.getElementById('username-input');
+            const passwordInput = document.getElementById('password-input');
+            const loginError = document.getElementById('login-error');
+            const authContainer = document.getElementById('auth-container');
+            const userWelcomeContainer = document.getElementById('user-welcome-container');
+            const welcomeUsername = document.getElementById('welcome-username');
+            const welcomeAvatar = document.getElementById('welcome-avatar-img');
+            const loginBtn = document.getElementById('login-btn');
+            const loginGuestBtn = document.getElementById('login-guest-btn');
+            const sidebarUsername = document.getElementById('sidebar-username');
+            const sidebarRole = document.getElementById('sidebar-role');
+            const sidebarAvatar = document.getElementById('sidebar-avatar-img');
+
+            
+            // --- DATA ---
+            // Start with an empty array. Data will be populated on upload.
+            const initialMockComments = [];
+
+            // --- AUTH LOGIC ---
+            function updateUIAfterLogin(user) {
+                const avatarUrl = `https://placehold.co/40x40/E2E8F0/475569?text=${user.name.charAt(0).toUpperCase()}`;
+                
+                // Update sidebar
+                sidebarUsername.textContent = user.name;
+                sidebarRole.textContent = user.role;
+                sidebarAvatar.src = avatarUrl;
+                
+                // Update header
+                welcomeUsername.textContent = user.name;
+                welcomeAvatar.src = avatarUrl;
+                authContainer.classList.add('hidden');
+                userWelcomeContainer.classList.remove('hidden');
+                
+                // Show logout button
+                logoutButton.classList.remove('hidden');
+                
+                // Close login modal if open
+                loginModal.classList.add('hidden');
+            }
+
+            function updateUIAfterLogout() {
+                 // Reset sidebar to guest
+                sidebarUsername.textContent = 'Guest User';
+                sidebarRole.textContent = 'Public Access';
+                sidebarAvatar.src = 'https://placehold.co/40x40/cbd5e1/475569?text=G';
+
+                // Reset header
+                authContainer.classList.remove('hidden');
+                userWelcomeContainer.classList.add('hidden');
+
+                // Hide logout button
+                logoutButton.classList.add('hidden');
+            }
+
+            loginBtn.addEventListener('click', () => {
+                loginModal.classList.remove('hidden');
+            });
+            
+            loginGuestBtn.addEventListener('click', () => {
+                const guestUser = { name: 'Guest', role: 'Public Access' };
+                updateUIAfterLogin(guestUser);
+                logoutButton.classList.add('hidden'); 
+            });
+
+            closeLoginModalBtn.addEventListener('click', () => {
+                loginModal.classList.add('hidden');
+            });
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value.trim();
+
+                // Simple hardcoded validation
+                if (username.toLowerCase() === 'admin' && password === '12345') {
+                    const adminUser = { name: 'Admin', role: 'System Administrator' };
+                    updateUIAfterLogin(adminUser);
+                } else {
+                    loginError.textContent = 'Invalid username or password.';
+                    loginError.classList.remove('hidden');
+                }
+            });
+
+            logoutButton.addEventListener('click', () => {
+                updateUIAfterLogout();
+            });
+
+            
+            // --- UI & DATA UPDATE FUNCTIONS ---
+
+            /** Recalculates all dashboard stats and updates the UI */
+            function updateAllVisuals() {
+                const sentimentCounts = filteredComments.reduce((acc, comment) => {
+                    acc[comment.sentiment] = (acc[comment.sentiment] || 0) + 1;
+                    return acc;
+                }, { positive: 0, negative: 0, neutral: 0 });
+
+                updateDashboardStats(sentimentCounts, filteredComments.length);
+                updateSentimentChart(sentimentCounts);
+                updateKeywordList(filteredComments);
+                renderTable();
+            }
+
+            /** Updates the main statistics cards at the top of the dashboard. */
+            function updateDashboardStats(counts, total) {
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-positive').textContent = counts.positive || 0;
+                document.getElementById('stat-negative').textContent = counts.negative || 0;
+                document.getElementById('stat-neutral').textContent = counts.neutral || 0;
+                const getPercentage = (count, total) => (total === 0 ? '0.0%' : ((count / total) * 100).toFixed(1) + '%');
+                document.getElementById('stat-positive-sub').textContent = `${getPercentage(counts.positive, total)} of total`;
+                document.getElementById('stat-negative-sub').textContent = `${getPercentage(counts.negative, total)} of total`;
+                document.getElementById('stat-neutral-sub').textContent = `${getPercentage(counts.neutral, total)} of total`;
+            }
+
+            /** Renders or updates the sentiment distribution doughnut chart. */
+            function updateSentimentChart(counts) {
+                const data = [counts.positive, counts.negative, counts.neutral];
+                if (sentimentChart) {
+                    sentimentChart.data.datasets[0].data = data;
+                    sentimentChart.update();
+                } else {
+                    sentimentChart = new Chart(document.getElementById('sentimentChart').getContext('2d'), {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Positive', 'Negative', 'Neutral'],
+                            datasets: [{ data: data, backgroundColor: [sentimentColors.positive, sentimentColors.negative, sentimentColors.neutral], borderColor: '#fff', borderWidth: 4 }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20 } } } }
+                    });
+                }
+            }
+
+            /** Renders the list of top keywords from the comments. */
+            function updateKeywordList(comments) {
+                const frequency = comments.flatMap(c => c.keywords).reduce((acc, word) => {
+                    acc[word] = (acc[word] || 0) + 1;
+                    return acc;
+                }, {});
+                const sortedKeywords = Object.entries(frequency).sort((a, b) => b[1] - a[1]).slice(0, 15);
+                keywordListContainer.innerHTML = '';
+                if (sortedKeywords.length === 0) {
+                    keywordListContainer.innerHTML = '<p class="text-sm text-slate-500">No keywords found. Upload a file to begin.</p>';
+                    return;
+                }
+                sortedKeywords.forEach(([keyword, count]) => {
+                    keywordListContainer.innerHTML += `<div class="flex justify-between items-center text-sm pb-2 border-b border-slate-100"><span class="font-medium text-slate-700">${keyword}</span><span class="font-bold text-indigo-600 bg-indigo-100 px-2.5 py-0.5 rounded-full text-xs">${count}</span></div>`;
+                });
+            }
+
+            /** Renders the main comments table with pagination. */
+            function renderTable() {
+                tableBody.innerHTML = '';
+                const paginatedComments = filteredComments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                
+                if (paginatedComments.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-16"><div class="flex flex-col items-center"><svg class="h-16 w-16 text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg><h3 class="mt-2 text-lg font-semibold text-slate-800">No Comments to Display</h3><p class="mt-1 text-sm text-slate-500">Please upload a file to start the analysis.</p></div></td></tr>`;
+                } else {
+                    paginatedComments.forEach(comment => {
+                        const clone = commentTemplate.content.cloneNode(true);
+                        const row = clone.querySelector('tr');
+                        row.dataset.commentId = comment.id;
+                        clone.querySelector('.data-summary').firstChild.textContent = comment.summary;
+                        clone.querySelector('.data-text').textContent = `"${comment.text}"`;
+                        clone.querySelector('.data-provision').textContent = comment.provision;
+                        const sentimentBadge = clone.querySelector('.data-sentiment');
+                        sentimentBadge.textContent = comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1);
+                        sentimentBadge.className += ` ${sentimentBGClasses[comment.sentiment]}`;
+                        const keywordsContainer = clone.querySelector('.data-keywords');
+                        comment.keywords.forEach(keyword => {
+                            const span = document.createElement('span');
+                            span.className = 'bg-slate-100 text-slate-700 text-xs font-medium px-2 py-0.5 rounded';
+                            span.textContent = keyword;
+                            keywordsContainer.appendChild(span);
+                        });
+                        const flagButton = clone.querySelector('.action-flag');
+                        if (comment.flagged) {
+                            flagButton.classList.add('text-red-600');
+                        }
+                        tableBody.appendChild(clone);
+                    });
+                }
+                renderPagination();
+            }
+
+            /** Renders the pagination controls based on the current state. */
+            function renderPagination() {
+                const totalPages = Math.ceil(filteredComments.length / itemsPerPage);
+                paginationControls.innerHTML = '';
+
+                const createButton = (text, onClick, isDisabled, isCurrent) => {
+                    const button = document.createElement('button');
+                    button.innerHTML = text;
+                    if (isCurrent) {
+                        button.className = 'px-3 py-1 rounded-md text-sm bg-indigo-600 text-white';
+                    } else {
+                         button.className = `px-3 py-1 rounded-md text-sm hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed`;
+                    }
+                    button.disabled = isDisabled;
+                    button.onclick = onClick;
+                    return button;
+                };
+
+                paginationControls.appendChild(createButton('<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>', () => { currentPage--; renderTable(); }, currentPage === 1));
+
+                for (let i = 1; i <= totalPages; i++) {
+                    paginationControls.appendChild(createButton(i, () => { currentPage = i; renderTable(); }, false, currentPage === i));
+                }
+                
+                paginationControls.appendChild(createButton('<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>', () => { currentPage++; renderTable(); }, currentPage === totalPages || totalPages === 0));
+
+                const startItem = filteredComments.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+                const endItem = Math.min(currentPage * itemsPerPage, filteredComments.length);
+                paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${filteredComments.length} results`;
+            }
+            
+            /** Renders the stacked bar chart for sentiment by provision. */
+            function renderProvisionChart() {
+                const dataByProvision = allComments.reduce((acc, comment) => {
+                    if (!acc[comment.provision]) acc[comment.provision] = { positive: 0, negative: 0, neutral: 0 };
+                    acc[comment.provision][comment.sentiment]++;
+                    return acc;
+                }, {});
+                
+                const labels = Object.keys(dataByProvision);
+                const datasets = [
+                    { label: 'Positive', data: labels.map(p => dataByProvision[p].positive || 0), backgroundColor: sentimentColors.positive },
+                    { label: 'Negative', data: labels.map(p => dataByProvision[p].negative || 0), backgroundColor: sentimentColors.negative },
+                    { label: 'Neutral', data: labels.map(p => dataByProvision[p].neutral || 0), backgroundColor: sentimentColors.neutral }
+                ];
+
+                if(provisionChartInstance) provisionChartInstance.destroy();
+                provisionChartInstance = new Chart(document.getElementById('provisionChart').getContext('2d'), {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+                });
+            }
+
+            // --- EVENT HANDLERS & LOGIC ---
+
+            /** Applies search and filter criteria and re-renders the UI. */
+            function handleFilterAndSearch() {
+                const searchText = searchInput.value.toLowerCase();
+                const sentimentValue = sentimentFilter.value;
+                
+                filteredComments = allComments.filter(comment => {
+                    const matchesSearch = searchText === '' ||
+                        comment.text.toLowerCase().includes(searchText) ||
+                        comment.summary.toLowerCase().includes(searchText) ||
+                        comment.provision.toLowerCase().includes(searchText) ||
+                        comment.keywords.some(k => k.toLowerCase().includes(searchText));
+                    
+                    const matchesSentiment = sentimentValue === 'all' || comment.sentiment === sentimentValue;
+                    
+                    return matchesSearch && matchesSentiment;
+                });
+                
+                currentPage = 1;
+                updateAllVisuals();
+            }
+
+            /** Handles clicks within the main table for actions like 'view' and 'flag'. */
+            function handleTableClick(event) {
+                const actionButton = event.target.closest('.action-view, .action-flag');
+                if (!actionButton) return;
+                
+                const row = event.target.closest('tr');
+                const commentId = parseInt(row.dataset.commentId);
+                const comment = allComments.find(c => c.id === commentId);
+
+                if (actionButton.classList.contains('action-view')) {
+                    showModal(comment);
+                } else if (actionButton.classList.contains('action-flag')) {
+                    comment.flagged = !comment.flagged;
+                    actionButton.classList.toggle('text-red-600', comment.flagged);
+                }
+            }
+            
+            /** Handles navigation between pages (Dashboard, Reports, etc.). */
+            function handleNavigation(event) {
+                const link = event.target.closest('.nav-link');
+                if (!link) return;
+                event.preventDefault();
+
+                // Animate the clicked link
+                link.classList.add('nav-link-active-animation');
+                link.addEventListener('animationend', () => {
+                    link.classList.remove('nav-link-active-animation');
+                }, { once: true });
+                
+                const targetId = link.dataset.target;
+                
+                navLinks.forEach(navLink => {
+                    navLink.classList.remove('bg-indigo-100', 'text-indigo-600');
+                    navLink.classList.add('text-slate-600', 'hover:bg-slate-100');
+                    navLink.removeAttribute('aria-current');
+                });
+                
+                link.classList.add('bg-indigo-100', 'text-indigo-600');
+                link.classList.remove('text-slate-600', 'hover:bg-slate-100');
+                link.setAttribute('aria-current', 'page');
+                
+                pageContents.forEach(page => {
+                    page.classList.toggle('active', page.id === targetId);
+                });
+                
+                if (targetId === 'page-reports') {
+                    renderProvisionChart();
+                }
+            }
+            
+            /** Shows the modal with details for a specific comment. */
+            function showModal(comment) {
+                modalTitle.textContent = `Comment #${comment.id} Details`;
+                modalProvision.textContent = `Regarding: ${comment.provision}`;
+                modalFullText.textContent = comment.text;
+                modalSentiment.innerHTML = `<span class="px-2 py-1 text-xs font-medium rounded-full ${sentimentBGClasses[comment.sentiment]}">${comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1)}</span>`;
+                viewModal.classList.remove('hidden');
+            }
+
+            /** Simulates exporting data by creating a downloadable CSV file. */
+            function exportDataToCSV() {
+                if (filteredComments.length === 0) {
+                    showToast('No data to export.', 'error');
+                    return;
+                }
+                let csvContent = "data:text/csv;charset=utf-t8,";
+                csvContent += "ID,Summary,Sentiment,Provision,Keywords,Full Text\n";
+
+                filteredComments.forEach(comment => {
+                    const row = [
+                        comment.id,
+                        `"${comment.summary.replace(/"/g, '""')}"`,
+                        comment.sentiment,
+                        comment.provision,
+                        `"${comment.keywords.join(', ')}"`,
+                        `"${comment.text.replace(/"/g, '""')}"`
+                    ].join(',');
+                    csvContent += row + "\n";
+                });
+                
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "sentiment_analysis_export.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            /** Handles the file upload process */
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const allowedExtensions = ['csv', 'txt', 'doc', 'docx', 'xls', 'xlsx'];
+                const extension = file.name.split('.').pop().toLowerCase();
+
+                if (allowedExtensions.includes(extension)) {
+                    showToast(`Processing "${file.name}"...`, 'info');
+                    // Simulate processing the file after a short delay
+                    setTimeout(() => {
+                        const commentCountToSimulate = 90; 
+                        const sampleProvisions = ["Taxation", "Healthcare", "Infrastructure", "Public Safety", "Education", "Environment", "Trade Policy", "Labor Law"];
+                        const sampleSentiments = ["positive", "negative", "neutral"];
+                        const sampleSummaries = {
+                            positive: "Strongly supports the new initiative regarding",
+                            negative: "Expresses significant concerns about",
+                            neutral: "Requests further clarification on the details of"
+                        };
+                         const sampleKeywords = {
+                            positive: ["support", "growth", "benefit", "innovation"],
+                            negative: ["oppose", "concern", "risk", "burden"],
+                            neutral: ["review", "clarify", "details", "impact study"]
+                        };
+
+                        const newComments = [];
+                        for (let i = 0; i < commentCountToSimulate; i++) {
+                            const sentiment = sampleSentiments[Math.floor(Math.random() * sampleSentiments.length)];
+                            const provision = sampleProvisions[Math.floor(Math.random() * sampleProvisions.length)];
+                            const id = allComments.length + i + 1;
+                            
+                            newComments.push({
+                                id: id,
+                                text: `This is a generated comment text for comment #${id} regarding the new ${provision} legislation. Based on our analysis, the sentiment is ${sentiment}. More details are required to fully assess the long-term impact.`,
+                                sentiment: sentiment,
+                                summary: `${sampleSummaries[sentiment]} ${provision}...`,
+                                keywords: sampleKeywords[sentiment],
+                                provision: provision,
+                                flagged: Math.random() < 0.05 // Flag 5% of new comments randomly
+                            });
+                        }
+
+                        allComments = [...newComments]; // Replace old comments with new ones
+                        handleFilterAndSearch();
+                        showToast(`${commentCountToSimulate} comments from "${file.name}" analyzed and imported!`, 'success');
+
+                    }, 1500);
+                } else {
+                    showToast('Invalid file type. Please upload a valid document.', 'error');
+                }
+                // Reset file input to allow uploading the same file again
+                event.target.value = '';
+            }
+
+            /** Shows a toast notification. */
+            function showToast(message, type = 'success') {
+                toastMessage.textContent = message;
+                toast.classList.remove('bg-green-500', 'bg-red-500', 'bg-blue-500');
+                if (type === 'success') {
+                    toast.classList.add('bg-green-500');
+                } else if (type === 'error') {
+                    toast.classList.add('bg-red-500');
+                } else { // info
+                    toast.classList.add('bg-blue-500');
+                }
+
+                toast.style.transform = 'translateX(0)';
+                setTimeout(() => {
+                    toast.style.transform = 'translateX(120%)';
+                }, 3000);
+            }
+
+            // --- EVENT LISTENERS BINDING ---
+            sidebarNav.addEventListener('click', handleNavigation);
+            searchInput.addEventListener('input', handleFilterAndSearch);
+            sentimentFilter.addEventListener('change', handleFilterAndSearch);
+            tableBody.addEventListener('click', handleTableClick);
+            
+            uploadButton.addEventListener('click', () => fileUploadInput.click());
+            fileUploadInput.addEventListener('change', handleFileUpload);
+            exportButton.addEventListener('click', exportDataToCSV);
+
+            // Modal close listeners
+            closeModalBtn.addEventListener('click', () => viewModal.classList.add('hidden'));
+            viewModal.addEventListener('click', (e) => { if (e.target === viewModal) viewModal.classList.add('hidden'); });
+
+            // --- INITIALIZATION ---
+            function initialize() {
+                allComments = [...initialMockComments];
+                handleFilterAndSearch();
+            }
+            
+            initialize();
+
+            // --- CHATBOT LOGIC ---
+            // --- GEMINI API CONFIGURATION ---
+            // Note: Exposing API keys on the client-side is insecure. This is for demonstration purposes only.
+            // In a real-world application, this call should be made from a secure backend server.
+            const GEMINI_API_KEY = "AIzaSyDdM6h4HDQH7pgqbR9SafsgjHNyGTtDLNY";
+            const GEMINI_MODEL = "gemini-2.5-flash-preview-05-20";
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+            
+            // --- CHATBOT ELEMENTS ---
+            const chatWidget = document.getElementById('chat-widget-container');
+            const chatToggleButton = document.getElementById('chat-toggle-button');
+            const chatCloseButton = document.getElementById('chat-close-btn');
+            const chatMessagesContainer = document.getElementById('chat-messages');
+            const chatForm = document.getElementById('chat-form');
+            const chatInput = document.getElementById('chat-input');
+
+            // Function to toggle chat widget visibility
+            function toggleChatWidget() {
+                chatWidget.classList.toggle('hidden');
+                setTimeout(() => {
+                    chatWidget.classList.toggle('active');
+                }, 10);
+            }
+
+            // Function to append a message to the chat UI
+            function appendMessage(message, sender) {
+                let messageHtml = '';
+                if (sender === 'user') {
+                    messageHtml = `
+                        <div class="flex items-start gap-3 justify-end">
+                            <div class="bg-indigo-600 text-white p-3 rounded-lg rounded-br-none max-w-xs">
+                                <p class="text-sm">${message}</p>
+                            </div>
+                            <div class="p-2 bg-slate-200 rounded-full"><svg class="h-6 w-6 text-slate-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 1 0 5 5 5 5 0 0 0-5-5zm0 8a3 3 0 1 1 3-3 3 3 0 0 1-3 3zm9 11v-1a7 7 0 0 0-7-7h-4a7 7 0 0 0-7 7v1h2v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1z" /></svg></div>
+                        </div>`;
+                } else if (sender === 'bot') {
+                    messageHtml = `
+                        <div class="flex items-start gap-3">
+                            <div class="p-2 bg-indigo-100 rounded-full"><svg class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M12 20h4"/><path d="M12 4H8"/><path d="M20 12h-4"/><path d="M4 12h4"/></svg></div>
+                            <div class="bg-slate-100 text-slate-700 p-3 rounded-lg rounded-tl-none max-w-xs">
+                                <p class="text-sm">${message}</p>
+                            </div>
+                        </div>`;
+                }
+                chatMessagesContainer.innerHTML += messageHtml;
+                chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+            }
+
+            function showTypingIndicator() {
+                const indicatorHtml = `
+                    <div id="typing-indicator" class="flex items-start gap-3">
+                        <div class="p-2 bg-indigo-100 rounded-full"><svg class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M12 20h4"/><path d="M12 4H8"/><path d="M20 12h-4"/><path d="M4 12h4"/></svg></div>
+                        <div class="bg-slate-100 text-slate-700 p-3 rounded-lg rounded-tl-none max-w-xs">
+                            <div class="flex items-center space-x-1">
+                                <span class="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                <span class="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                <span class="h-2 w-2 bg-slate-400 rounded-full animate-bounce"></span>
+                            </div>
+                        </div>
+                    </div>`;
+                chatMessagesContainer.innerHTML += indicatorHtml;
+                chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+            }
+
+            function removeTypingIndicator() {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) indicator.remove();
+            }
+
+            async function handleChatSubmit(event) {
+                event.preventDefault();
+                const userInput = chatInput.value.trim();
+                if (!userInput) return;
+
+                appendMessage(userInput, 'user');
+                chatInput.value = '';
+                showTypingIndicator();
+
+                try {
+                    const systemPrompt = "You are a helpful AI assistant integrated into 'GovSentiment', a legislative sentiment analysis platform. Your purpose is to answer questions related to government, legislation, public policy, and sentiment analysis. Provide concise, informative, and neutral answers. Do not make up information. If you don't know an answer, say so.";
+                    const payload = {
+                        contents: [{ parts: [{ text: systemPrompt }, { text: `User query: ${userInput}` }] }],
+                    };
+
+                    const response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    const botResponse = data.candidates[0].content.parts[0].text;
+                    
+                    removeTypingIndicator();
+                    appendMessage(botResponse, 'bot');
+
+                } catch (error) {
+                    console.error("Error fetching Gemini response:", error);
+                    removeTypingIndicator();
+                    appendMessage("Sorry, I'm having trouble connecting right now. Please try again later.", 'bot');
+                }
+            }
+
+            // --- CHATBOT EVENT LISTENERS ---
+            chatToggleButton.addEventListener('click', toggleChatWidget);
+            chatCloseButton.addEventListener('click', toggleChatWidget);
+            chatForm.addEventListener('submit', handleChatSubmit);
         });
-        addExpenseForm.reset();
-        renderFinanceUI();
-    });
-
-    expenseTableBody.addEventListener('click', (e) => {
-        if (e.target.closest('.delete-expense-btn')) {
-            const expenseId = Number(e.target.closest('.delete-expense-btn').dataset.id);
-            financeState.expenses = financeState.expenses.filter(ex => ex.id !== expenseId);
-            renderFinanceUI();
-        }
-    });
-    
-    // --- Productivity Module Logic ---
-    const taskList = document.getElementById('task-list');
-    const progressBar = document.getElementById('progress-bar');
-    const tasksDone = document.getElementById('tasks-done');
-    const tasksTotal = document.getElementById('tasks-total');
-    const productivityScore = document.getElementById('productivity-score');
-    const motivationPopup = document.getElementById('motivation-popup');
-    
-    function updateProgress() {
-        const checkboxes = taskList.querySelectorAll('input[type="checkbox"]');
-        const checkedTasks = taskList.querySelectorAll('input[type="checkbox"]:checked').length;
-        const totalTasks = checkboxes.length;
-        const percentage = totalTasks > 0 ? (checkedTasks / totalTasks) * 100 : 0;
-        
-        progressBar.style.width = percentage + '%';
-        tasksDone.textContent = checkedTasks;
-        tasksTotal.textContent = totalTasks;
-        productivityScore.textContent = Math.round(percentage);
-        
-        motivationPopup.classList.toggle('hidden', checkedTasks === 0 || checkedTasks === totalTasks);
-    }
-    
-    taskList.addEventListener('change', (e) => {
-        if (e.target.type === 'checkbox') {
-            e.target.nextElementSibling.classList.toggle('line-through', e.target.checked);
-            updateProgress();
-        }
-    });
-    updateProgress(); // Initial call
-
-    // --- Healthy Habits Module Logic ---
-    const healthFocusSelect = document.getElementById('health-focus');
-    const habitTrackerContainer = document.getElementById('habit-tracker-container');
-    const habitTitle = document.getElementById('habit-title');
-    const habitAdvice = document.getElementById('habit-advice');
-    const habitChecklist = document.getElementById('habit-checklist');
-    const badgeDisplay = document.getElementById('badge-display');
-    
-    const habitData = {
-        hydration: { title: '💧 Daily Hydration Tracker', advice: 'Aim for 8 glasses of water a day. Carry a reusable bottle as a reminder!', tasks: ['Morning glass', 'With lunch', 'Afternoon hydration', 'With dinner'], badges: [{ name: '1-Day Streak', icon: '💧' }, { name: '3-Day Streak', icon: '🌊' }] },
-        sleep: { title: '😴 Sleep Improvement Plan', advice: 'Aim for 7-8 hours per night. A consistent sleep schedule is key.', tasks: ['No caffeine after 2 PM', 'Dim lights before bed', 'Read a book', 'In bed by 11 PM'], badges: [{ name: 'Well Rested', icon: '🌙' }, { name: 'Sleep Champion', icon: '⭐' }] },
-        activity: { title: '💪 Physical Activity Goals', advice: 'Take a 15-minute walk after lunch to boost your energy and digestion.', tasks: ['15-minute morning walk', 'Take the stairs instead of the elevator', 'Evening stretching routine'], badges: [{ name: 'First Step', icon: '🚶' }, { name: 'Moving Up', icon: '🤸' }] },
-        walk: { title: '👟 Morning Walk Routine', advice: 'Starting your day with a walk can improve your mood and energy levels.', tasks: ['Put on walking shoes', 'Walk for 15 minutes', 'Stretch afterwards'], badges: [{ name: 'Early Bird', icon: '☀️' }, { name: 'Consistent Walker', icon: '🏞️' }] },
-        running: { title: '🏃‍♂️ Couch to 5K Plan', advice: 'Start slow and build up your stamina. Consistency is more important than speed.', tasks: ['Warm-up jog', 'Run for 5 minutes, walk for 2', 'Repeat 3 times', 'Cool-down stretch'], badges: [{ name: 'On the Run', icon: '💨' }, { name: 'Marathon Ready', icon: '🏆' }] },
-        reading: { title: '📚 Daily Reading Habit', advice: 'Just 15 minutes of reading a day can expand your knowledge and reduce stress.', tasks: ['Choose a book', 'Read one chapter', 'Read for 15 minutes without distraction'], badges: [{ name: 'Bookworm', icon: '🐛' }, { name: 'Librarian', icon: '📖' }] }
-    };
-
-    healthFocusSelect.addEventListener('change', (e) => {
-        const focus = e.target.value;
-        if (habitData[focus]) {
-            const data = habitData[focus];
-            habitTitle.textContent = data.title;
-            habitAdvice.textContent = data.advice;
-            habitChecklist.innerHTML = data.tasks.map(task => `<li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-indigo-600"><span class="ml-3 text-gray-700">${task}</span></li>`).join('');
-            badgeDisplay.innerHTML = data.badges.map(badge => `<div class="text-center p-2 bg-slate-100 rounded-lg"><div class="text-3xl">${badge.icon}</div><div class="text-xs font-medium text-gray-600">${badge.name}</div></div>`).join('');
-            habitTrackerContainer.classList.remove('hidden');
-        }
-    });
-
-    // --- AI Life Coach Chat Logic ---
-    const aiCoachBtn = document.getElementById('ai-coach-btn');
-    const aiChatModal = document.getElementById('ai-chat-modal');
-    const closeChatBtn = document.getElementById('close-chat-btn');
-    const lifeCoachChatWindow = document.getElementById('life-coach-chat-window');
-    const lifeCoachInput = document.getElementById('life-coach-chat-input');
-    const lifeCoachSendBtn = document.getElementById('life-coach-chat-send');
-    let isCoachFirstMessage = true;
-
-    aiCoachBtn.addEventListener('click', () => {
-        aiChatModal.classList.remove('hidden');
-        if (isCoachFirstMessage) {
-            addChatMessage(lifeCoachChatWindow, "Hello! I'm your AI Life Coach. Ask me for personalized financial advice based on your data!", 'bot');
-            isCoachFirstMessage = false;
-        }
-    });
-    closeChatBtn.addEventListener('click', () => aiChatModal.classList.add('hidden'));
-
-    async function handleLifeCoachSubmit() {
-        const userInput = lifeCoachInput.value.trim();
-        if (userInput) {
-            addChatMessage(lifeCoachChatWindow, userInput, 'user');
-            lifeCoachInput.value = '';
-            addChatMessage(lifeCoachChatWindow, "Thinking...", 'bot', true);
-
-            const botResponse = await getGeminiResponse(userInput, financeState, 'lifeCoach');
-            
-            const thinkingMessage = lifeCoachChatWindow.querySelector('.thinking');
-            if(thinkingMessage) thinkingMessage.parentElement.remove();
-            
-            addChatMessage(lifeCoachChatWindow, botResponse, 'bot');
-        }
-    }
-
-    lifeCoachSendBtn.addEventListener('click', handleLifeCoachSubmit);
-    lifeCoachInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLifeCoachSubmit(); });
-
-
-    // --- AI Tech Support Logic ---
-    const techSupportChatWindow = document.getElementById('tech-support-chat-window');
-    const techSupportInput = document.getElementById('tech-support-input');
-    const techSupportSendBtn = document.getElementById('tech-support-send');
-    let isTechSupportFirstMessage = true;
-    
-    contactUsBtn.addEventListener('click', () => {
-        if(isTechSupportFirstMessage) {
-            addChatMessage(techSupportChatWindow, "Hello! How can I help with any technical issues you're facing?", 'bot');
-            isTechSupportFirstMessage = false;
-        }
-    });
-
-    async function handleTechSupportSubmit() {
-        const userInput = techSupportInput.value.trim();
-        if (userInput) {
-            addChatMessage(techSupportChatWindow, userInput, 'user');
-            techSupportInput.value = '';
-            addChatMessage(techSupportChatWindow, "Analyzing...", 'bot', true);
-
-            const botResponse = await getGeminiResponse(userInput, null, 'techSupport');
-
-            const thinkingMessage = techSupportChatWindow.querySelector('.thinking');
-            if(thinkingMessage) thinkingMessage.parentElement.remove();
-
-            addChatMessage(techSupportChatWindow, botResponse, 'bot');
-        }
-    }
-
-    techSupportSendBtn.addEventListener('click', handleTechSupportSubmit);
-    techSupportInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleTechSupportSubmit(); });
-
-
-    // --- Universal Chat & Gemini API Logic ---
-    function addChatMessage(chatWindow, message, sender, isTyping = false) {
-        const messageEl = document.createElement('div');
-        messageEl.className = `chat-message ${sender}-message`;
-
-        if (isTyping) {
-            messageEl.innerHTML = '<span class="animate-pulse thinking">Thinking...</span>';
-        } else {
-            messageEl.textContent = message;
-        }
-        chatWindow.appendChild(messageEl);
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-    }
-
-    async function getGeminiResponse(userInput, currentFinanceState, mode) {
-        const apiKey = ""; // This will be handled by the environment
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-        let systemPrompt = '';
-        let fullPrompt = userInput;
-
-        if (mode === 'lifeCoach') {
-            systemPrompt = `You are an AI financial coach within the "Counter Hub" app. Your persona is encouraging and practical. Your goal is to provide actionable, personalized financial advice based on the user's spending data. Analyze the provided data, identify 1-2 key areas for saving, and provide specific, actionable tips in 2-4 sentences. If the user asks for the current date or time, respond with "I can help with your life goals, but I don't have a watch. You can check your device's clock for the time!". If the user does not ask a finance-related question, gently guide them to one of the app's modules ('Finance', 'Productivity', 'Habits', 'Goals').`;
-            
-            const financeKeywords = ['financ', 'money', 'budget', 'saving', 'expense', 'spending', 'save'];
-            const isFinanceQuery = financeKeywords.some(keyword => userInput.toLowerCase().includes(keyword));
-
-            if (isFinanceQuery && currentFinanceState && currentFinanceState.expenses.length > 0) {
-                const { budget, expenses } = currentFinanceState;
-                const totalSpent = expenses.reduce((sum, ex) => sum + ex.amount, 0);
-                const spendingByCategory = expenses.reduce((acc, ex) => { acc[ex.category] = (acc[ex.category] || 0) + ex.amount; return acc; }, {});
-
-                fullPrompt = `My financial data: Budget ₹${budget}, Total Spent ₹${totalSpent}, Spending Breakdown: ${JSON.stringify(spendingByCategory)}. My question is: "${userInput}"`;
-            }
-        } else if (mode === 'techSupport') {
-            systemPrompt = `You are a friendly Technical Support AI for the "Counter Hub" app. Your goal is to help users solve common technical problems. First, offer simple troubleshooting steps like refreshing the page or checking their internet. If that doesn't work, acknowledge the problem might be on our end and that you've logged the issue. Never ask for personal information. Keep your tone calm and reassuring.`;
-        }
-        
-        const payload = {
-            contents: [{ parts: [{ text: fullPrompt }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-        };
-
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) throw new Error(`API Error: ${response.status}`);
-            const result = await response.json();
-            return result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure how to respond to that.";
-        } catch (error) {
-            console.error("Error calling Gemini API:", error);
-            return "Sorry, I'm having trouble connecting. Please try again in a moment.";
-        }
-    }
-    
-    // --- AI Coach Tooltip Animation ---
-    const aiTooltip = document.getElementById('ai-tooltip');
-    setInterval(() => {
-        // Only show tooltip if the chat modal is not already open
-        if(aiChatModal.classList.contains('hidden')) {
-            aiTooltip.classList.add('show');
-            setTimeout(() => {
-                aiTooltip.classList.remove('show');
-            }, 1500); // Tooltip stays visible for 1.5 seconds
-        }
-    }, 4000); // Pop up every 4 seconds
-});
-</script>
-
+    </script>
 </body>
 </html>
+
+
